@@ -319,51 +319,53 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onWalletConnected }) => {
           </button>
         </div>
       ) : (
-        <div className="flex flex-col md:flex-row items-center justify-between">
-          <div className="flex items-center mb-2 md:mb-0">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
-            <p className="text-gray-800 font-medium">
+        <div className="flex flex-row items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full mr-2"></div>
+            <span className="text-gray-800 font-medium">
               {walletInfo.address.substring(0, 6)}...{walletInfo.address.substring(walletInfo.address.length - 4)}
-            </p>
+            </span>
           </div>
-          <div className="flex items-center space-x-2">
-            <div>
-              <div className="flex flex-col">
-                <p className="text-gray-700">
-                  <span className="font-semibold">{walletInfo.usdcBalance}</span> USDC 
-                  <span className="text-xs ml-1 text-gray-600">(for gameplay)</span>
-                </p>
-                <p className="text-gray-700 text-xs">
-                  <span className="font-semibold">{walletInfo.balance}</span> ETH 
-                  <span className="text-xs ml-1 text-gray-600">(for gas)</span>
-                </p>
+          
+          <div className="flex items-center space-x-5">
+            <div className="flex items-center space-x-3">
+              <div>
+                <span className="font-semibold text-lg">{walletInfo.usdcBalance}</span>
+                <span className="text-xs text-gray-500 ml-1">USDC</span>
               </div>
-              <div className="flex mt-1 space-x-1">
+              
+              <div className="flex space-x-1">
                 <button 
                   onClick={refreshBalance}
-                  className="text-xs px-2 py-1 text-blue-600 hover:text-blue-800 rounded hover:bg-blue-50"
+                  className="text-xs p-1.5 text-blue-600 hover:bg-blue-50 rounded"
                   title="Refresh balance"
                 >
-                  Refresh
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
                 </button>
                 <button 
                   onClick={requestFunds}
                   disabled={isRequestingFunds}
-                  className={`text-xs px-2 py-1 rounded ${
+                  className={`text-xs p-1.5 rounded ${
                     isRequestingFunds
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'text-green-600 hover:text-green-800 hover:bg-green-50'
+                      ? 'text-gray-400 cursor-not-allowed'
+                      : 'text-green-600 hover:bg-green-50'
                   }`}
                   title="Request test USDC funds"
                 >
-                  Get Funds
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
                 </button>
                 <button 
                   onClick={switchToBaseSepolia}
-                  className="text-xs px-2 py-1 text-purple-600 hover:text-purple-800 rounded hover:bg-purple-50"
+                  className="text-xs p-1.5 text-purple-600 hover:bg-purple-50 rounded"
                   title="Switch to Base Sepolia Testnet"
                 >
-                  Base Sepolia
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
                 </button>
               </div>
             </div>
