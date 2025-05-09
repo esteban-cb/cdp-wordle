@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* Wordle-specific colors */
+@layer components {
+  .bg-correct {
+    background-color: #6aaa64;
+  }
+  
+  .bg-present {
+    background-color: #c9b458;
+  }
+  
+  .bg-absent {
+    background-color: #787c7e;
+  }
+  
+  .bg-border {
+    border-color: #d3d6da;
+  }
+  
+  .bg-darkGray {
+    border-color: #878a8c;
+  }
+}
+
+/* Mobile-first layout improvements */
+@media (max-width: 768px) {
+  .mobile-container {
+    flex-direction: column;
+  }
+  
+  .game-section, .chat-section {
+    width: 100%;
+    height: 50vh;
+  }
+}
