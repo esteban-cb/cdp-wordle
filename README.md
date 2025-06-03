@@ -26,6 +26,22 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser to see the project.
 
+## Environment Variables
+
+This project uses several environment variables that should be kept secure:
+
+### Passage Authentication
+
+- `PASSAGE_APP_ID` - Your Passage application ID
+- `PASSAGE_API_KEY` - Your Passage API key for server-side operations
+
+### CDP Wallet Integration
+
+- `CDP_API_KEY_ID` - Your CDP API key ID
+- `CDP_API_KEY_SECRET` - Your CDP API key secret
+- `CDP_WALLET_SECRET` - Your CDP wallet secret key
+
+**IMPORTANT:** Never commit these keys to source control or expose them publicly.
 
 ## Configuring Your Agent
 
