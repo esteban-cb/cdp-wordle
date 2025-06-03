@@ -4,45 +4,55 @@ import React, { useState, useEffect, useRef } from 'react';
 import WordleRow from './components/WordleRow';
 import WordleKeyboard from './components/WordleKeyboard';
 import HowToPlayModal from './components/HowToPlayModal';
-import WalletConnect from './components/WalletConnect';
-import { LetterStatus, KeyboardStatus, WordleGuess, WalletInfo, MAX_GUESSES, WORD_LENGTH, MIN_BALANCE_TO_PLAY } from './types/wordle';
-// Import the agent hook instead of using direct API calls
+import PassageAuth from './components/PassageAuth';
+import { LetterStatus, MIN_BALANCE_TO_PLAY, WORD_LENGTH } from './types/wordle';
 import { useAgent } from './hooks/useAgent';
 import ReactMarkdown from 'react-markdown';
+import UserInfoModal from './components/UserInfoModal';
+import { useAuth } from './contexts/AuthContext';
+import { useWallet } from './contexts/WalletContext';
+import { useGame } from './contexts/GameContext';
 
 /**
- * Home page for the AgentKit Quickstart
+ * Home page for the CDP Wordle Application
+ * Simplified to prevent excessive re-renders and API calls
  *
  * @returns {React.ReactNode} The home page
  */
 export default function Home() {
+  // Context hooks
+  const { userInfo, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { walletInfo, isInitializing, initializeWallet, clearWallet } = useWallet();
+  const { 
+    guesses, 
+    keyStatus, 
+    isGameOver, 
+    addGuess, 
+    updateKeyboardStatus, 
+    startNewGame, 
+    clearGameState,
+    addProcessedMessage,
+    hasProcessedMessage
+  } = useGame();
+
   // Use the agent hook for chat functionality
-  const { messages, sendMessage, isThinking } = useAgent();
+  const { messages, sendMessage, isThinking, clearMessages } = useAgent();
   
-  const [guesses, setGuesses] = useState<WordleGuess[]>([]);
-  const [keyStatus, setKeyStatus] = useState<KeyboardStatus>({});
-  const [isGameOver, setIsGameOver] = useState(false);
-  const [targetWord, setTargetWord] = useState('');
+  // Local state for UI
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [inputValue, setInputValue] = useState('');
-  const [walletInfo, setWalletInfo] = useState<WalletInfo>({
-    address: '',
-    balance: '0',
-    usdcBalance: '0',
-    isConnected: false
-  });
-  // Add a state to track processed messages
-  const [processedMessages, setProcessedMessages] = useState<Set<string>>(new Set());
-  // Add a flag to prevent multiple welcome messages
-  const welcomeMessageSent = useRef(false);
+  const [showUserInfoModal, setShowUserInfoModal] = useState(false);
   
+  // Refs to track state
+  const welcomeMessageSent = useRef(false);
+  const walletInitialized = useRef(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize the game
+  // Initialize the game once
   useEffect(() => {
     startNewGame();
-  }, []);
+  }, [startNewGame]);
   
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -50,6 +60,54 @@ export default function Home() {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Handle wallet initialization when user becomes authenticated
+  useEffect(() => {
+    const initWallet = async () => {
+      if (isAuthenticated && userInfo && !walletInitialized.current && !isInitializing) {
+        walletInitialized.current = true;
+        try {
+          await initializeWallet(userInfo.displayName);
+        } catch (error) {
+          console.error('Error initializing wallet:', error);
+          walletInitialized.current = false;
+        }
+      }
+    };
+
+    initWallet();
+  }, [isAuthenticated, userInfo, isInitializing, initializeWallet]);
+
+  // Send welcome message once when wallet is ready
+  useEffect(() => {
+    const sendWelcomeMessage = () => {
+      if (walletInfo.isConnected && userInfo && !welcomeMessageSent.current) {
+        welcomeMessageSent.current = true;
+        
+        const hasEnoughBalance = parseFloat(walletInfo.usdcBalance) >= MIN_BALANCE_TO_PLAY;
+        
+        if (hasEnoughBalance) {
+          sendMessage(`Hello! I'm authenticated as ${userInfo.displayName}. My CDP wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Let's play Wordle!`);
+        } else {
+          sendMessage(`I'm authenticated as ${userInfo.displayName}, but my CDP wallet only has ${walletInfo.usdcBalance} USDC. How do I get more USDC tokens?`);
+        }
+      }
+    };
+
+    sendWelcomeMessage();
+  }, [walletInfo.isConnected, userInfo, walletInfo.address, walletInfo.usdcBalance, sendMessage]);
+
+  // Clear everything when user logs out
+  useEffect(() => {
+    if (!isAuthenticated && !authLoading) {
+      clearWallet();
+      clearMessages();
+      clearGameState();
+      setInputValue('');
+      welcomeMessageSent.current = false;
+      walletInitialized.current = false;
+    }
+  }, [isAuthenticated, authLoading, clearWallet, clearMessages, clearGameState]);
 
   // Process agent responses that might contain Wordle evaluations
   useEffect(() => {
@@ -65,14 +123,10 @@ export default function Home() {
     const messageId = `${lastUserMessage.text}-${lastAgentMessage.text}`;
     
     // Skip if we've already processed this message
-    if (processedMessages.has(messageId)) return;
+    if (hasProcessedMessage(messageId)) return;
     
     // Add to processed messages
-    setProcessedMessages(prev => {
-      const newSet = new Set(prev);
-      newSet.add(messageId);
-      return newSet;
-    });
+    addProcessedMessage(messageId);
     
     // Check if user message is a potential wordle guess
     const guess = lastUserMessage.text.trim().toLowerCase();
@@ -98,84 +152,19 @@ export default function Home() {
           }
         }
         
-        // Check if this exact guess is already in the guesses array to prevent duplicates
-        const isDuplicate = guesses.some(existingGuess => existingGuess.word === guess);
-        
-        if (!isDuplicate) {
-          // Update guesses and keyboard only if not a duplicate
-          const newGuess = { word: guess, result: letterStatuses };
-          setGuesses(prev => [...prev, newGuess]);
-          updateKeyboardStatus(guess, letterStatuses);
-          
-          // Check if game is over (all correct or max guesses)
-          const isWin = letterStatuses.every(status => status === 'correct');
-          const isLoss = guesses.length + 1 >= MAX_GUESSES && !isWin;
-          
-          if (isWin || isLoss) {
-            setIsGameOver(true);
-          }
-        }
+        // Add guess and update keyboard status using context
+        addGuess(guess, letterStatuses);
+        updateKeyboardStatus(guess, letterStatuses);
       }
     }
-  }, [messages]);
-
-  const handleWalletConnected = (info: WalletInfo) => {
-    setWalletInfo(info);
-    
-    // Send a welcome message if wallet is connected with sufficient balance
-    // but only if we haven't sent one already
-    if (info.isConnected && !welcomeMessageSent.current) {
-      welcomeMessageSent.current = true;
-      
-      // If requesting funds, automatically send that message
-      if ((info as any).requestingFunds) {
-        sendMessage("add testnet funds to my wallet");
-        return;
-      }
-      
-      const hasEnoughBalance = parseFloat(info.usdcBalance) >= MIN_BALANCE_TO_PLAY;
-      
-      if (hasEnoughBalance) {
-        sendMessage(`Hello! I've connected my wallet (${info.address.substring(0, 6)}...${info.address.substring(info.address.length - 4)}) with ${info.usdcBalance} USDC. Let's play Wordle!`);
-      } else {
-        sendMessage(`I've connected my wallet, but I only have ${info.usdcBalance} USDC. How do I get more USDC tokens?`);
-      }
-    }
-  };
-
-  // Add a function to check if the wallet has enough balance
-  const hasEnoughBalance = () => {
-    return walletInfo.isConnected && parseFloat(walletInfo.usdcBalance) >= MIN_BALANCE_TO_PLAY;
-  };
-
-  // Effect to monitor wallet changes and start a new game if conditions are met
-  useEffect(() => {
-    // If wallet changes to having enough balance and we don't have any games yet
-    if (hasEnoughBalance() && guesses.length === 0 && !isThinking && messages.length <= 1) {
-      startNewGame();
-    }
-  }, [walletInfo, messages.length, guesses.length, isThinking]);
-
-  const startNewGame = () => {
-    // Reset the game state
-    setGuesses([]);
-    setKeyStatus({});
-    setIsGameOver(false);
-    // Clear processed messages when starting a new game
-    setProcessedMessages(new Set());
-    
-    // Send a message to start a new game if wallet is connected with enough balance
-    if (hasEnoughBalance()) {
-      sendMessage("Let's play Wordle! I'm ready for a new game.");
-    }
-  };
+  }, [messages, hasProcessedMessage, addProcessedMessage, addGuess, updateKeyboardStatus]);
 
   const handleSendMessage = async (message: string) => {
     if (isThinking || message.trim() === '') return;
     
-    // Check if wallet is connected
+    // Check if user is authenticated and wallet is connected
     if (!walletInfo.isConnected) {
-      alert("Please connect your wallet to play.");
+      alert('Please log in to play.');
       return;
     }
     
@@ -233,25 +222,6 @@ export default function Home() {
       }
     }
   };
-  
-  const updateKeyboardStatus = (guess: string, result: LetterStatus[]) => {
-    const newKeyStatus = { ...keyStatus };
-    
-    for (let i = 0; i < guess.length; i++) {
-      const letter = guess[i];
-      const status = result[i];
-      
-      // Only update if the new status is better
-      // Priority: correct > present > absent > undefined
-      if (!newKeyStatus[letter] || 
-          (status === 'correct') || 
-          (status === 'present' && newKeyStatus[letter] !== 'correct')) {
-        newKeyStatus[letter] = status;
-      }
-    }
-    
-    setKeyStatus(newKeyStatus);
-  };
 
   // Render game board
   const renderGameBoard = () => {
@@ -269,6 +239,7 @@ export default function Home() {
     }
     
     // Add empty rows to fill up to MAX_GUESSES
+    const MAX_GUESSES = 6;
     for (let i = guesses.length; i < MAX_GUESSES; i++) {
       rows.push(<WordleRow key={i} guess="" result={[]} />);
     }
@@ -276,68 +247,126 @@ export default function Home() {
     return rows;
   };
 
+  // Show loading state while authentication is being checked
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mobile-container md:flex md:flex-row h-screen overflow-hidden">
       {/* Game board - always visible on top on mobile, left on desktop */}
-      <div className="game-section md:w-1/2 flex flex-col items-center bg-white">
-        <div className="w-full flex justify-between items-center px-4 mb-2 border-b border-gray-200 pb-2">
+      <div className="game-section md:w-1/2 flex flex-col bg-white dark:bg-gray-800 relative">
+        {/* Game Status Indicator */}
+        {walletInfo.isConnected && userInfo ? (
+          <div className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="status-indicator status-ready">
+              <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+              <span className="font-medium">Ready to Play</span>
+            </div>
+          </div>
+        ) : isInitializing ? (
+          <div className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="status-indicator status-offline">
+              <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full animate-pulse"></div>
+              <span>Initializing wallet...</span>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="status-indicator status-offline">
+              <div className="w-2.5 h-2.5 bg-gray-400 rounded-full"></div>
+              <span>Please log in to play</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Help button - positioned in top right corner */}
+        <div className="absolute top-6 right-6 z-10">
           <button 
             onClick={() => setShowHowToPlay(true)}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-full"
+            className="p-2.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors shadow-md bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700"
             aria-label="Help"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" className="game-icon" data-testid="icon-help">
+            <svg xmlns="http://www.w3.org/2000/svg" height="18" viewBox="0 0 24 24" width="18" className="game-icon">
               <path fill="currentColor" d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"></path>
             </svg>
           </button>
-          <h1 className="text-3xl font-bold tracking-wide uppercase">AI Wordle</h1>
-          <div className="w-10"></div> {/* Spacer for centering */}
         </div>
         
-        {/* Wallet Connect Component */}
-        <WalletConnect onWalletConnected={handleWalletConnected} />
-        
-        <div className="game-board-container flex-1 overflow-y-auto mb-4 mt-2">
-          {renderGameBoard()}
+        <div className="game-board-container flex-1 overflow-y-auto px-6 py-6 flex items-center justify-center">
+          <div className="max-w-xs w-full">
+            {renderGameBoard()}
+          </div>
         </div>
         
-        <div className="keyboard-container flex-shrink-0 w-full pb-4">
-          <WordleKeyboard 
-            keyStatus={keyStatus} 
-            onKeyClick={handleKeyboardClick}
-          />
-          {isGameOver && (
-            <button 
-              onClick={startNewGame}
-              className="mt-4 px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-bold mx-auto block"
-            >
-              Play Again
-            </button>
-          )}
+        <div className="keyboard-container flex-shrink-0 w-full px-4 pb-4">
+          <div className="max-w-md mx-auto">
+            <WordleKeyboard 
+              keyStatus={keyStatus} 
+              onKeyClick={handleKeyboardClick}
+            />
+            {isGameOver && (
+              <button 
+                onClick={startNewGame}
+                className="mt-4 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold mx-auto block shadow-md hover:shadow-lg"
+              >
+                Play Again
+              </button>
+            )}
+          </div>
         </div>
       </div>
       
-      {/* Chat interface - fixed height with scroll on desktop, below game on mobile */}
-      <div className="chat-section md:w-1/2 bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col">
-        <div className="chat-header flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-gray-50">
-          <h2 className="text-xl font-semibold">Chat with AI</h2>
-          <span className={`text-xs px-2 py-1 rounded-full ${walletInfo.isConnected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-            {walletInfo.isConnected ? 'Wallet Connected' : 'Wallet Disconnected'}
-          </span>
+      {/* Chat interface */}
+      <div className="chat-section md:w-1/2 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex flex-col">
+        <div className="chat-header flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
+          <div className="flex items-center space-x-3">
+            {userInfo && walletInfo.isConnected && (
+              <div 
+                className="flex items-center px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors text-sm font-medium"
+                title="Click to view profile details"
+                onClick={() => setShowUserInfoModal(true)}
+              >
+                <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
+                <span>{userInfo.displayName}</span>
+              </div>
+            )}
+            <div className="auth-button">
+              <PassageAuth />
+            </div>
+          </div>
         </div>
         
-        {/* Chat UI */}
-        <div className="flex-grow overflow-y-auto p-4" ref={chatContainerRef}>
+        {/* Chat messages area */}
+        <div className="flex-grow overflow-y-auto p-4 space-y-3" ref={chatContainerRef}>
           {messages.length === 0 ? (
-            <p className="text-center text-gray-500">Connect your wallet to start playing AI Wordle...</p>
+            <div className="text-center py-8">
+              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <p className="text-gray-600 dark:text-gray-400 mb-2">Welcome to CDP Wordle!</p>
+                <p className="text-gray-500 dark:text-gray-500 text-sm">Sign in or register to start playing Wordle with crypto rewards.</p>
+              </div>
+            </div>
           ) : (
             messages.map((msg, index) => (
               <div
                 key={index}
-                className={`p-3 rounded-lg shadow mb-3 ${
+                className={`p-4 rounded-xl shadow-sm max-w-[85%] ${
                   msg.sender === "user"
-                    ? "bg-[#0052FF] text-white ml-auto max-w-[80%]"
-                    : "bg-gray-100 dark:bg-gray-700 mr-auto max-w-[80%]"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white ml-auto"
+                    : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mr-auto text-gray-900 dark:text-gray-100"
                 }`}
               >
                 <ReactMarkdown
@@ -345,7 +374,7 @@ export default function Home() {
                     a: props => (
                       <a
                         {...props}
-                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300"
+                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
                         target="_blank"
                         rel="noopener noreferrer"
                       />
@@ -359,16 +388,25 @@ export default function Home() {
           )}
 
           {/* Thinking Indicator */}
-          {isThinking && <div className="text-right mr-2 text-gray-500 italic">🤖 Thinking...</div>}
+          {isThinking && (
+            <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 ml-4">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              </div>
+              <span className="text-sm italic">AI is thinking...</span>
+            </div>
+          )}
         </div>
 
-        {/* Input Box */}
-        <div className="p-3 border-t border-gray-200 bg-white">
-          <div className="flex items-center space-x-2">
+        {/* Input area */}
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-center space-x-3">
             <input
               ref={inputRef}
               type="text"
-              className="flex-grow p-2 rounded border dark:bg-gray-700 dark:border-gray-600"
+              className="flex-grow p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder={isGameOver ? "Game over. Start a new game!" : "Type a message or 5-letter guess..."}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
@@ -377,31 +415,41 @@ export default function Home() {
             />
             <button
               onClick={() => handleSendMessage(inputValue)}
-              className={`px-6 py-2 rounded-full font-semibold transition-all ${
+              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
                 isThinking || !walletInfo.isConnected
-                  ? "bg-gray-300 cursor-not-allowed text-gray-500"
-                  : "bg-[#0052FF] hover:bg-[#003ECF] text-white shadow-md"
+                  ? "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
+                  : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg"
               }`}
               disabled={isThinking || !walletInfo.isConnected}
             >
               Send
             </button>
           </div>
-          {!walletInfo.isConnected && (
-            <div className="text-xs text-red-500 mt-1 ml-2">Wallet not connected</div>
-          )}
+          {/* Balance warning */}
           {walletInfo.isConnected && parseFloat(walletInfo.usdcBalance) < MIN_BALANCE_TO_PLAY && (
-            <div className="text-xs text-amber-500 mt-1 ml-2">
-              Insufficient balance. You can ask for help getting USDC.
+            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <svg className="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <span className="text-sm text-yellow-800 dark:text-yellow-300">
+                  Insufficient balance. You can ask for help getting USDC.
+                </span>
+              </div>
             </div>
           )}
         </div>
       </div>
       
-      {/* How to play modal */}
+      {/* Modals */}
       <HowToPlayModal 
         isOpen={showHowToPlay} 
         onClose={() => setShowHowToPlay(false)} 
+      />
+
+      <UserInfoModal 
+        isOpen={showUserInfoModal} 
+        onClose={() => setShowUserInfoModal(false)}
       />
     </div>
   );

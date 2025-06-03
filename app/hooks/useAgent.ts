@@ -37,6 +37,7 @@ async function messageAgent(userMessage: string): Promise<string | null> {
  * - `sendMessage(input)` sends a message to `/api/agent` and updates state.
  * - `messages` stores the chat history.
  * - `isThinking` tracks whether the agent is processing a response.
+ * - `clearMessages()` clears the conversation history.
  *
  * #### See Also
  * - The API logic in `/api/agent.ts`
@@ -45,6 +46,7 @@ async function messageAgent(userMessage: string): Promise<string | null> {
  * - `messages`: The conversation history.
  * - `sendMessage`: A function to send a new message.
  * - `isThinking`: Boolean indicating if the agent is processing a response.
+ * - `clearMessages`: A function to clear the conversation history.
  */
 export function useAgent() {
   const [messages, setMessages] = useState<{ text: string; sender: "user" | "agent" }[]>([]);
@@ -70,5 +72,14 @@ export function useAgent() {
     setIsThinking(false);
   };
 
-  return { messages, sendMessage, isThinking };
+  /**
+   * Clears all messages from the conversation history.
+   * Useful for resetting the chat session when user logs out.
+   */
+  const clearMessages = () => {
+    setMessages([]);
+    setIsThinking(false);
+  };
+
+  return { messages, sendMessage, isThinking, clearMessages };
 }

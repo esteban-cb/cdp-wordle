@@ -1,0 +1,899 @@
+/* Custom styling for Passage Authentication */
+
+passage-auth {
+  /* Passage Container Styles */
+  --passage-container-border-radius: 12px;
+  --passage-container-background-color: rgba(255, 255, 255, 0.98);
+  --passage-container-max-width: 420;
+  --passage-container-margin: 0;
+  --passage-container-padding: 28px 32px;
+  --passage-modal-background-color: rgba(255, 255, 255, 0.98);
+
+  /* Error Styles */
+  --passage-error-color: #e03131;
+
+  /* Header Text Styles */
+  --passage-header-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --passage-header-font-size: 26px;
+  --passage-header-font-weight: 700;
+  --passage-header-text-color: #0044DD;
+
+  /* Body Text Styles */
+  --passage-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --passage-body-font-size: 15px;
+  --passage-body-font-weight: 400;
+  --passage-body-text-color: #222;
+
+  /* Anchor Styles */
+  --passage-anchor-text-color: #0044DD;
+  --passage-anchor-hover-color: #0033AA;
+  --passage-anchor-active-color: #00228F;
+
+  /* One-Time Password Styles */
+  --passage-otp-input-background-color: #f0f0f0;
+
+  /* Input Styles */
+  --passage-input-text-color: #222;
+  --passage-control-border-radius: 8px;
+  --passage-control-border-color: #d0d0d0;
+  --passage-control-border-active-color: #0044DD;
+  --passage-control-border-hover-color: #0044DD80;
+
+  /* Text Input Styles */
+  --passage-input-box-background-color: #fff;
+  --passage-input-box-border-radius: 10px;
+
+  /* Checkbox Styles */
+  --passage-checkbox-background-color: #0044DD;
+  --passage-checkbox-text-color: #fff;
+
+  /* Button Styles */
+  --passage-button-font-size: 16px;
+  --passage-button-font-weight: 600;
+  --passage-button-width: 100%;
+
+  --passage-primary-button-background-color: #0044DD;
+  --passage-primary-button-text-color: #fff;
+  --passage-primary-button-border-radius: 12px;
+  --passage-primary-button-border-color: #0044DD;
+  --passage-primary-button-border-width: 0px;
+  --passage-primary-button-text-hover-color: #fff;
+  --passage-primary-button-background-hover-color: #0033AA;
+  --passage-primary-button-border-hover-color: #0033AA;
+  --passage-primary-button-text-active-color: #fff;
+  --passage-primary-button-background-active-color: #00228F;
+  --passage-primary-button-border-active-color: #00228F;
+
+  --passage-secondary-button-background-color: #f5f8ff;
+  --passage-secondary-button-text-color: #0044DD;
+  --passage-secondary-button-border-radius: 12px;
+  --passage-secondary-button-border-color: #0044DD;
+  --passage-secondary-button-border-width: 1px;
+  --passage-secondary-button-text-hover-color: #0033AA;
+  --passage-secondary-button-background-hover-color: #eaf1ff;
+  --passage-secondary-button-border-hover-color: #0033AA;
+  --passage-secondary-button-text-active-color: #00228F;
+  --passage-secondary-button-background-active-color: #dce7ff;
+  --passage-secondary-button-border-active-color: #00228F;
+}
+
+/* Text-based Authentication Buttons */
+.auth-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  text-decoration: none;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  min-width: 80px;
+}
+
+.login-button {
+  background: linear-gradient(135deg, #0052FF, #0044DD);
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 82, 255, 0.2);
+}
+
+.login-button:hover {
+  background: linear-gradient(135deg, #0046DD, #0033AA);
+  box-shadow: 0 4px 8px rgba(0, 82, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.login-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 82, 255, 0.2);
+}
+
+.logout-button {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+.logout-button:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+  transform: translateY(-1px);
+}
+
+.logout-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.2);
+}
+
+.loading-button {
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.loading-button:disabled {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Advanced styling with CSS parts */
+passage-auth::part(input) {
+  border-color: #d7d7d7;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+passage-auth::part(input):focus {
+  border-color: #0052FF;
+  box-shadow: 0 1px 3px rgba(0, 82, 255, 0.2);
+}
+
+passage-auth::part(button) {
+  transition: all 0.3s ease;
+  font-weight: 500;
+}
+
+passage-auth::part(button):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  passage-auth {
+    --passage-container-background-color: rgba(18, 18, 25, 0.98);
+    --passage-modal-background-color: rgba(18, 18, 25, 0.98);
+    --passage-header-text-color: #6495ED;
+    --passage-body-text-color: #E0E0E0;
+    --passage-input-text-color: #E0E0E0;
+    --passage-input-box-background-color: #2a2a3a;
+    --passage-control-border-color: #444;
+    --passage-control-border-active-color: #6495ED;
+    --passage-anchor-text-color: #6495ED;
+    --passage-anchor-hover-color: #87CEFA;
+  }
+  
+  /* Dark mode text buttons */
+  .login-button {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  }
+  
+  .login-button:hover {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
+  }
+  
+  .logout-button {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+  }
+  
+  .logout-button:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4);
+  }
+  
+  .loading-button {
+    background: #374151;
+    color: #9ca3af;
+  }
+  
+  passage-auth::part(passage-auth-title) {
+    color: #5b8ef7 !important;
+  }
+  
+  passage-auth::part(passage-auth-form-input) {
+    background-color: #2a2a3a !important;
+    border-color: #444 !important;
+    color: #e0e0e0 !important;
+  }
+  
+  passage-auth::part(passage-auth-form-input):focus {
+    background-color: #33333f !important;
+    border-color: #5b8ef7 !important;
+    box-shadow: 0 0 0 3px rgba(91, 142, 247, 0.25) !important;
+  }
+  
+  passage-auth::part(passage-auth-divider) {
+    color: #aaa !important;
+  }
+  
+  passage-auth::part(passage-auth-register-link) {
+    color: #5b8ef7 !important;
+  }
+  
+  passage-auth::part(passage-auth-register-link):hover {
+    color: #79a9ff !important;
+  }
+  
+  /* Dark mode for modal */
+  passage-auth::part(passage-auth-modal) {
+    background: rgba(25, 25, 35, 0.98) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3) !important;
+  }
+  
+  passage-auth::part(passage-auth-alternative-methods) {
+    border-top-color: #444 !important;
+  }
+  
+  /* Dark mode button styling */
+  passage-auth::part(passage-auth-button) {
+    background-color: #5b8ef7 !important;
+    box-shadow: 0 2px 8px rgba(91, 142, 247, 0.25) !important;
+  }
+  
+  passage-auth::part(passage-auth-button):hover {
+    background-color: #4a7de6 !important;
+    box-shadow: 0 4px 12px rgba(91, 142, 247, 0.35) !important;
+  }
+  
+  passage-auth::part(passage-auth-form-submit) {
+    background-color: #5b8ef7 !important;
+    box-shadow: 0 4px 12px rgba(91, 142, 247, 0.25) !important;
+  }
+  
+  passage-auth::part(passage-auth-form-submit):hover {
+    background-color: #4a7de6 !important;
+    box-shadow: 0 6px 16px rgba(91, 142, 247, 0.35) !important;
+  }
+  
+  passage-auth::part(passage-auth-form-submit):active {
+    background-color: #3a6cd5 !important;
+    box-shadow: 0 2px 8px rgba(91, 142, 247, 0.2) !important;
+  }
+}
+
+/* Custom styles for Passage Auth element */
+
+/* Main container styles */
+.passage-auth-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+/* Style for the Passage auth button */
+passage-auth::part(passage-auth-button) {
+  background-color: #0052FF !important;
+  color: white !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  padding: 10px 20px !important;
+  border: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(0, 82, 255, 0.25) !important;
+  transition: all 0.2s ease !important;
+}
+
+passage-auth::part(passage-auth-button):hover {
+  background-color: #003ECF !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(0, 82, 255, 0.35) !important;
+}
+
+/* Style Passage modal to match our design */
+passage-auth::part(passage-auth-modal) {
+  border-radius: 16px !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+passage-auth::part(passage-auth-body) {
+  padding: 32px !important;
+}
+
+passage-auth::part(passage-auth-title) {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  color: #0052FF !important;
+  margin-bottom: 20px !important;
+  text-align: center !important;
+}
+
+/* Form inputs */
+passage-auth::part(passage-auth-form-input) {
+  border-radius: 10px !important;
+  padding: 12px 16px !important;
+  font-size: 15px !important;
+  border: 1px solid #e0e0e0 !important;
+  background-color: #f9f9f9 !important;
+  width: 100% !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+passage-auth::part(passage-auth-form-input):focus {
+  border-color: #0052FF !important;
+  background-color: #fff !important;
+  box-shadow: 0 0 0 3px rgba(0, 82, 255, 0.15) !important;
+}
+
+passage-auth::part(passage-auth-form-submit) {
+  background-color: #0052FF !important;
+  color: white !important;
+  border-radius: 12px !important;
+  padding: 12px 20px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  margin-top: 20px !important;
+  width: 100% !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 12px rgba(0, 82, 255, 0.25) !important;
+  transition: all 0.2s ease !important;
+  border: none !important;
+}
+
+passage-auth::part(passage-auth-form-submit):hover {
+  background-color: #003ECF !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 16px rgba(0, 82, 255, 0.35) !important;
+}
+
+passage-auth::part(passage-auth-form-submit):active {
+  background-color: #002DA7 !important;
+  transform: translateY(1px) !important;
+  box-shadow: 0 2px 8px rgba(0, 82, 255, 0.2) !important;
+}
+
+/* Alternative login methods */
+passage-auth::part(passage-auth-alternative-methods) {
+  margin-top: 20px !important;
+  border-top: 1px solid #eaeaea !important;
+  padding-top: 20px !important;
+}
+
+passage-auth::part(passage-auth-divider) {
+  margin: 20px 0 !important;
+  color: #666 !important;
+  font-size: 14px !important;
+}
+
+/* Hide Passage branding */
+passage-auth::part(passage-auth-branding) {
+  display: none !important;
+}
+
+/* Register link */
+passage-auth::part(passage-auth-footer) {
+  margin-top: 20px !important;
+  text-align: center !important;
+  font-size: 14px !important;
+}
+
+passage-auth::part(passage-auth-register-link) {
+  color: #0052FF !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+
+passage-auth::part(passage-auth-register-link):hover {
+  text-decoration: underline !important;
+  color: #003ECF !important;
+}
+
+/* Custom logout button styling */
+.logout-button {
+  background-color: #ff3b30;
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 12px;
+  padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.25);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logout-button:hover {
+  background-color: #e0352b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.35);
+}
+
+.logout-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(255, 59, 48, 0.2);
+}
+
+.logout-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Ensure proper sizing of popup auth windows */
+.passage-auth popup-window,
+.passage-auth webauthn-window {
+  max-width: 400px !important;
+  width: 100% !important;
+}
+
+/* Custom styling for Passage Auth element with class */
+.custom-passage-auth {
+  max-width: 420px;
+  width: 100%;
+}
+
+/* Custom styling for the auth button/modal */
+.custom-passage-auth::part(passage-auth-button) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  background-color: #0052FF !important;
+  color: white !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  border-radius: 12px !important;
+  padding: 10px 20px !important;
+  height: auto !important;
+  border: none !important;
+  cursor: pointer !important;
+  box-shadow: 0 2px 8px rgba(0, 82, 255, 0.25) !important;
+  transition: all 0.2s ease !important;
+  min-width: 120px !important;
+  text-align: center !important;
+}
+
+.custom-passage-auth::part(passage-auth-button):before {
+  content: "Login" !important;
+}
+
+/* Make sure to force our styling even on dynamically loaded elements */
+passage-auth::part(passage-auth-container) {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Add a subtle animation for the buttons */
+passage-auth::part(passage-auth-button),
+passage-auth::part(passage-auth-form-submit) {
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+passage-auth::part(passage-auth-button):after,
+passage-auth::part(passage-auth-form-submit):after {
+  content: "" !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  width: 10px !important;
+  height: 10px !important;
+  background: rgba(255, 255, 255, 0.3) !important;
+  opacity: 0 !important;
+  border-radius: 100% !important;
+  transform: scale(1, 1) translate(-50%, -50%) !important;
+  transform-origin: 50% 50% !important;
+}
+
+passage-auth::part(passage-auth-button):focus:after,
+passage-auth::part(passage-auth-form-submit):focus:after {
+  animation: ripple 0.6s ease-out !important;
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 1 !important;
+    transform: scale(0, 0) translate(-50%, -50%) !important;
+  }
+  100% {
+    opacity: 0 !important;
+    transform: scale(20, 20) translate(-50%, -50%) !important;
+  }
+}
+
+/* Power Button Styling - Modern and refined version */
+.power-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  outline: none;
+  transform: translateZ(0);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.power-button svg {
+  width: 20px;
+  height: 20px;
+  transition: all 0.3s ease;
+  stroke-width: 2.2px;
+}
+
+.power-button:before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.power-on {
+  color: white;
+  background-color: #0052FF;
+  background-image: linear-gradient(135deg, #0052FF, #0038B8);
+}
+
+.power-on:hover {
+  background-image: linear-gradient(135deg, #0045DB, #0030A0);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 82, 255, 0.25);
+}
+
+.power-on:hover svg {
+  transform: scale(1.1);
+}
+
+.power-on:before {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.power-on:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 5px rgba(0, 82, 255, 0.2);
+}
+
+.power-off {
+  color: white;
+  background-color: #FF3B30;
+  background-image: linear-gradient(135deg, #FF3B30, #E0352B);
+}
+
+.power-off:hover {
+  background-image: linear-gradient(135deg, #E0352B, #C42E25);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(255, 59, 48, 0.25);
+}
+
+.power-off:hover svg {
+  transform: scale(1.1);
+}
+
+.power-off:before {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.power-off:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 5px rgba(255, 59, 48, 0.2);
+}
+
+.power-loading {
+  color: white;
+  background-color: #8E8E93;
+  background-image: linear-gradient(135deg, #8E8E93, #6E6E73);
+  cursor: not-allowed;
+}
+
+.power-loading svg {
+  animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Button pulse effect */
+.power-button:after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.power-button:focus:not(:active):after {
+  animation: ripple 0.8s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    opacity: 1;
+    transform: scale(0) translate(-50%, -50%);
+  }
+  35% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(20) translate(-50%, -50%);
+  }
+}
+
+/* Modal Styling */
+.passage-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.passage-modal-content {
+  background-color: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 450px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+.passage-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  font-size: 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+  z-index: 10;
+}
+
+.passage-modal-close:hover {
+  color: #333;
+}
+
+.passage-modal-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .passage-modal-content {
+    background-color: #1c1c1e;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .passage-modal-close {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #aaa;
+  }
+  
+  .passage-modal-close:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #eee;
+  }
+  
+  .power-loading {
+    background-color: #2c2c2e;
+    color: #8e8e93;
+  }
+}
+
+/* Header auth button positioning */
+.auth-button {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+}
+
+/* Chat header auth button alignment */
+.chat-header .auth-button {
+  margin-left: 6px;
+}
+
+/* Make sure the user info and auth button align nicely */
+.chat-header .flex.items-center {
+  gap: 8px;
+}
+
+/* Custom styling for Passage Auth element with class */
+.custom-passage-auth {
+  max-width: 420px;
+}
+
+/* Ensure passage auth button text is hidden */
+passage-auth::part(passage-auth-button-text) {
+  display: none !important;
+}
+
+/* Replace passage auth button with our style */
+passage-auth::part(passage-auth-button) {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 50% !important;
+  background-color: #0052FF !important;
+  color: white !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border: none !important;
+  transition: all 0.25s ease !important;
+  box-shadow: 0 2px 10px rgba(0, 82, 255, 0.2) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+}
+
+passage-auth::part(passage-auth-button):hover {
+  background-color: #003ECF !important;
+  transform: scale(1.05) !important;
+  box-shadow: 0 4px 12px rgba(0, 82, 255, 0.25) !important;
+}
+
+passage-auth::part(passage-auth-button):before {
+  content: "" !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18.36 6.64a9 9 0 1 1-12.73 0'%3E%3C/path%3E%3Cline x1='12' y1='2' x2='12' y2='12'%3E%3C/line%3E%3C/svg%3E") !important;
+  width: 22px !important;
+  height: 22px !important;
+  display: block !important;
+}
+
+/* Custom styling for user badge with better contrast */
+.chat-header .flex.items-center .rounded-full.bg-green-100 {
+  background-color: #e8f5e9 !important;
+  color: #1b5e20 !important;
+  border: 1px solid rgba(27, 94, 32, 0.2) !important;
+  padding: 4px 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.chat-header .flex.items-center .rounded-full.bg-green-100:hover {
+  background-color: #d7f0da !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.chat-header .flex.items-center .rounded-full.bg-green-100 .bg-green-500 {
+  background-color: #2e7d32 !important;
+}
+
+/* Improved contrast for text throughout the app */
+body, .text-gray-600, .text-gray-500 {
+  color: #444;
+}
+
+.text-gray-800, .text-gray-900, h1, h2, h3, h4, h5, h6 {
+  color: #222;
+}
+
+/* Improved contrast for buttons */
+button.bg-\[\#0052FF\], .bg-\[\#0052FF\] {
+  background-color: #0044DD !important;
+}
+
+button.hover\:bg-\[\#003ECF\]:hover, .hover\:bg-\[\#003ECF\]:hover {
+  background-color: #0033AA !important;
+}
+
+/* Make sure all links are high-contrast */
+a {
+  color: #0044DD;
+}
+
+a:hover {
+  color: #0033AA;
+}
+
+/* Improved contrast for the status indicators */
+.bg-green-500 {
+  background-color: #2e7d32 !important;
+}
+
+/* Better visibility for chat messages */
+.bg-gray-100 {
+  background-color: #f5f5f5 !important;
+  border: 1px solid #e0e0e0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .dark\:bg-gray-700 {
+    background-color: #333 !important;
+  }
+  
+  .dark\:text-gray-100 {
+    color: #F5F5F5 !important;
+  }
+  
+  .dark\:bg-gray-800 {
+    background-color: #1a1a1a !important;
+  }
+}
+
+/* Custom styling for Passage React components */
+/* These target the React components rendering inside our modal */
+.passage-modal-body div[data-testid="passage-auth-container"] {
+  width: 100%;
+  max-width: 380px;
+}
+
+.passage-modal-body div[data-testid="passage-auth"] {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* Custom styling for user badge with better contrast */
+.chat-header .flex.items-center .rounded-full.bg-green-100 {
+  background-color: #e8f5e9 !important;
+  color: #1b5e20 !important;
+  border: 1px solid rgba(27, 94, 32, 0.2) !important;
+  padding: 4px 10px !important;
+  transition: all 0.2s ease !important;
+}
+
+.chat-header .flex.items-center .rounded-full.bg-green-100:hover {
+  background-color: #d7f0da !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.chat-header .flex.items-center .rounded-full.bg-green-100 .bg-green-500 {
+  background-color: #2e7d32 !important;
+} 

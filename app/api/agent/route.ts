@@ -26,9 +26,9 @@ function getRandomWord(): string {
 }
 
 // Check if a word is in our word list
-function isValidWord(word: string): boolean {
-  return WORD_LIST.includes(word.toLowerCase());
-}
+// function isValidWord(word: string): boolean {
+//   return WORD_LIST.includes(word.toLowerCase());
+// }
 
 // Evaluate a guess against the target word
 function evaluateGuess(guess: string, targetWord: string): { letterStatuses: string[], evaluation: string } {
@@ -180,7 +180,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       gameState.guesses.push(message);
       
       // Evaluate the guess
-      const { letterStatuses, evaluation } = evaluateGuess(message, gameState.targetWord);
+      const { evaluation } = evaluateGuess(message, gameState.targetWord);
       
       // Check if the game is over
       const isWin = message === gameState.targetWord;
