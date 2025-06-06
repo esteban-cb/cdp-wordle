@@ -532,6 +532,20 @@ export default function Home() {
               {isGettingFunds ? 'Requesting...' : 'Get Funds'}
             </button>
           </div>
+          {/* Circle Faucet Link */}
+          <div className="mt-2 px-3">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Having issues getting funds? Try the{' '}
+              <a 
+                href="https://faucet.circle.com/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline transition-colors"
+              >
+                Circle Faucet
+              </a>
+            </p>
+          </div>
           <div className="flex items-center space-x-3">
             {userInfo && walletInfo.isConnected && (
               <div 
