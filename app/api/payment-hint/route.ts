@@ -22,9 +22,14 @@ function getRandomLetterHint(targetWord: string): string {
     }
   }
   
+  console.log("Hint generation: Target word is:", targetWord);
+  console.log("Hint generation: Unique letters are:", uniqueLetters);
+  
   // Pick a random letter
   const randomIndex = Math.floor(Math.random() * uniqueLetters.length);
   const randomLetter = uniqueLetters[randomIndex].toUpperCase();
+  
+  console.log("Hint generation: Selected letter:", randomLetter);
   
   // Use proper grammar (a vs an)
   const article = ['A', 'E', 'I', 'O', 'U'].includes(randomLetter) ? 'an' : 'a';
@@ -55,6 +60,8 @@ export async function POST(request: NextRequest) {
     const userId = "user123"; // In a real app, derive this from the wallet address or session
     
     const gameState = getOrCreateGameState(userId);
+    console.log("Payment hint: Current target word is:", gameState.targetWord);
+    console.log("Payment hint: Current guesses:", gameState.guesses);
     const letterHint = getRandomLetterHint(gameState.targetWord);
 
     // Initialize CDP client if not already initialized

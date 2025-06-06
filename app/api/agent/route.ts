@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AgentRequest, AgentResponse } from "../../types/api";
 import { WORD_LENGTH } from "../../types/wordle";
-import * as walletService from "../../services/wallet";
-import { generatePrivateKey } from "viem/accounts";
 import { 
   getOrCreateGameState, 
   setGameState, 
   deleteGameState, 
-  getConversationHistory, 
   addToConversationHistory,
   getRandomWord
 } from "../../services/gameState";
@@ -60,69 +57,34 @@ function evaluateGuess(guess: string, targetWord: string): { letterStatuses: str
   return { letterStatuses, evaluation: evaluation.join('\n') };
 }
 
-// Initialize wallet if not already initialized
-async function ensureWalletInitialized() {
-  if (!walletService.isWalletInitialized()) {
-    // Generate a new private key for this server instance
-    const privateKey = generatePrivateKey();
-    await walletService.initializeWallet(privateKey);
-  }
-}
-
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    // Make sure wallet is initialized
-    await ensureWalletInitialized();
     
     const { userMessage }: AgentRequest = await request.json();
     
     // Get a unique identifier for the user session (in a real app, use a proper user ID)
     const userId = "user123";
     
-    // Get conversation history
-    const history = getConversationHistory(userId);
-    
     // Add user message to history
     addToConversationHistory(userId, { text: userMessage, sender: "user" });
     
     // Get or create game state
     const gameState = getOrCreateGameState(userId);
+    console.log("Agent: Current target word is:", gameState.targetWord);
+    console.log("Agent: Current guesses:", gameState.guesses);
     const message = userMessage.trim().toLowerCase();
     
-    // Check for blockchain-specific commands
+    // Handle wallet-related questions generically (the frontend manages the actual wallet)
     if (message.includes("wallet address") || message.includes("my address")) {
-      const address = walletService.getWalletAddress();
-      const response = `Your wallet address is: ${address}`;
+      const response = "You can view your wallet address and details by clicking on your profile in the top right corner of the chat.";
       addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
     
     if (message.includes("balance") || message.includes("my balance")) {
-      const address = walletService.getWalletAddress();
-      if (address) {
-        const balance = await walletService.getBalance(address);
-        const usdcBalance = await walletService.getUSDCBalance(address);
-        const response = `Your wallet balance is: ${usdcBalance} USDC (for gameplay) and ${balance} ETH (for gas fees).`;
-        addToConversationHistory(userId, { text: response, sender: "agent" });
-        return NextResponse.json({ response } as AgentResponse);
-      }
-    }
-    
-    if (message.includes("request funds") || message.includes("add testnet funds")) {
-      const address = walletService.getWalletAddress();
-      if (address) {
-        const result = await walletService.requestTestnetFunds(address);
-        
-        let response = '';
-        if (result.success) {
-          response = `I've requested testnet USDC for your wallet. Transaction hash: ${result.txHash}. It may take a few minutes for the funds to appear in your wallet.`;
-        } else {
-          response = `There was an error requesting funds: ${result.error || 'Unknown error'}. Please try again later or use the faucet manually.`;
-        }
-        
-        addToConversationHistory(userId, { text: response, sender: "agent" });
-        return NextResponse.json({ response } as AgentResponse);
-      }
+      const response = "Your current balance is shown in your profile. Click on your username in the top right to see your ETH and USDC balances.";
+      addToConversationHistory(userId, { text: response, sender: "agent" });
+      return NextResponse.json({ response } as AgentResponse);
     }
     
     // Expanded game commands to include variations like "start wordle"
@@ -145,7 +107,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       
       console.log("New target word:", newTargetWord); // For debugging
       
-      const response = "Great! I've selected a new 5-letter word! Make your first guess.";
+      const response = "I've selected a fresh 5-letter word for you - time for a new challenge!\n\nMake your first guess!";
       addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
@@ -156,8 +118,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // This allows users to try any 5-letter word
       gameState.guesses.push(message);
       
-      // Evaluate the guess
-      const { letterStatuses, evaluation } = evaluateGuess(message, gameState.targetWord);
+      // Evaluate the guess  
+      const { evaluation } = evaluateGuess(message, gameState.targetWord);
       
       // Check if the game is over
       const isWin = message === gameState.targetWord;
@@ -186,27 +148,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ response } as AgentResponse);
     }
     
-    // Handle other types of messages using AgentKit
-    try {
-      // Process message with AgentKit
-      const agentResponse = await walletService.processMessage(userMessage, 
-        history.map(msg => ({ 
-          id: Math.random().toString(), 
-          role: msg.sender === 'user' ? 'user' : 'assistant', 
-          content: msg.text 
-        }))
-      );
-      
-      addToConversationHistory(userId, { text: agentResponse, sender: "agent" });
-      return NextResponse.json({ response: agentResponse } as AgentResponse);
-    } catch (error) {
-      console.error("Error with AgentKit processing:", error);
-      
-      // Fall back to regular non-guess message handling
-      const response = handleNonGuessMessage(message, gameState);
-      addToConversationHistory(userId, { text: response, sender: "agent" });
-      return NextResponse.json({ response } as AgentResponse);
-    }
+    // Fall back to regular non-guess message handling
+    const response = handleNonGuessMessage(message, gameState);
+    addToConversationHistory(userId, { text: response, sender: "agent" });
+    return NextResponse.json({ response } as AgentResponse);
     
   } catch (error) {
     console.error("Error in agent route:", error);
@@ -223,6 +168,12 @@ function handleNonGuessMessage(message: string, gameState: { targetWord: string,
     return "To play Wordle, first say 'start wordle' to begin a new game. Then guess any 5-letter word. I'll tell you which letters are in the correct position (CORRECT), which letters are in the word but in the wrong position (PRESENT), and which letters are not in the word (ABSENT). You have 6 guesses to find the word!";
   }
   
+  // Check if this is a payment hint message (not a user request for hint)
+  if (message.includes("payment successful! here's your hint:")) {
+    // This is a payment hint message, encourage them to use it
+    return "Here's a hint! Can you guess the word now?";
+  }
+  
   // Check if asking for a hint
   if (message.includes("hint") || message.includes("clue")) {
     // If they haven't made any guesses yet, give a general hint
@@ -230,16 +181,18 @@ function handleNonGuessMessage(message: string, gameState: { targetWord: string,
       return "To start playing, say 'start wordle' and then make your first guess with any 5-letter word!";
     }
     
-    // Give a hint about a letter in the target word
-    const firstLetter = gameState.targetWord[0].toUpperCase();
-    return `Here's a hint: The word starts with the letter ${firstLetter}.`;
+    // If they're actively playing, encourage them to continue
+    return "Can you guess the word now?";
   }
   
-  // Check if asking about getting test USDC
-  if (message.toLowerCase().includes("usdc") || 
+  // Check if asking about getting test USDC (be more specific to avoid triggering on status messages)
+  if (message.toLowerCase().includes("how do i get") || 
+      message.toLowerCase().includes("need more") ||
+      message.toLowerCase().includes("get more") ||
       message.toLowerCase().includes("faucet") || 
       message.toLowerCase().includes("get funds") || 
-      message.toLowerCase().includes("more funds")) {
+      message.toLowerCase().includes("more funds") ||
+      (message.toLowerCase().includes("usdc") && (message.toLowerCase().includes("need") || message.toLowerCase().includes("how")))) {
     return "To get test USDC for Base Sepolia, you can use the 'Get Funds' button in the interface. You'll also need a small amount of ETH for gas fees, which you can get from a faucet like:\n\n" +
            "Base Sepolia Faucet (official): https://www.coinbase.com/faucets/base-sepolia-faucet\n\n" +
            "Connect your wallet on those sites and request test tokens.";
@@ -251,5 +204,5 @@ function handleNonGuessMessage(message: string, gameState: { targetWord: string,
   }
   
   // Default response
-  return "You can start a Wordle game by saying 'start wordle'. Then try guessing a 5-letter word! Or ask for 'help' if you need assistance.";
+  return "Welcome to CDP Wordle! Say 'start wordle' to begin a new game, or ask for 'help' if you need assistance.";
 }
