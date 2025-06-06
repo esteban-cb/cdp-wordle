@@ -5,8 +5,74 @@ import dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
+// Base Sepolia USDC contract address
+const BASE_SEPOLIA_USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
+
 // Initialize CDP client on the server-side where environment variables are accessible
 let cdpClient: CdpClient | undefined = undefined;
+
+// Function to get account balances using direct RPC calls
+async function getAccountBalances(address: string): Promise<{ ethBalance: string; usdcBalance: string }> {
+  try {
+    // Use Base Sepolia RPC endpoint
+    const rpcUrl = 'https://sepolia.base.org';
+    
+    // Get ETH balance
+    const ethBalanceResponse = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getBalance',
+        params: [address, 'latest'],
+        id: 1,
+      }),
+    });
+    
+    const ethBalanceData = await ethBalanceResponse.json();
+    const ethBalanceWei = parseInt(ethBalanceData.result || '0x0', 16);
+    const ethBalance = (ethBalanceWei / 1e18).toFixed(4);
+
+    // Get USDC balance (ERC-20 balanceOf call)
+    const usdcCallData = `0x70a08231000000000000000000000000${address.substring(2)}`;
+    
+    const usdcBalanceResponse = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_call',
+        params: [
+          {
+            to: BASE_SEPOLIA_USDC_ADDRESS,
+            data: usdcCallData,
+          },
+          'latest',
+        ],
+        id: 2,
+      }),
+    });
+    
+    const usdcBalanceData = await usdcBalanceResponse.json();
+    const usdcBalanceRaw = parseInt(usdcBalanceData.result || '0x0', 16);
+    const usdcBalance = (usdcBalanceRaw / 1e6).toFixed(2); // USDC has 6 decimals
+
+    return {
+      ethBalance,
+      usdcBalance
+    };
+  } catch (error) {
+    console.error('Error fetching account balances:', error);
+    return {
+      ethBalance: "0.00",
+      usdcBalance: "0.00"
+    };
+  }
+}
 
 try {
   console.log("Server: Initializing CDP client...");
@@ -58,13 +124,25 @@ export async function POST(request: NextRequest) {
         
         console.log(`Server: Wallet ready with address: ${evmAccount.address}`);
         
-        // Return wallet info with mocked balances for now
-        return NextResponse.json({
-          address: evmAccount.address,
-          balance: "0.01",
-          usdcBalance: "10.00",
-          isConnected: true
-        });
+        // Get actual balances
+        try {
+          const balances = await getAccountBalances(evmAccount.address);
+          return NextResponse.json({
+            address: evmAccount.address,
+            balance: balances.ethBalance,
+            usdcBalance: balances.usdcBalance,
+            isConnected: true
+          });
+        } catch (balanceError) {
+          console.error('Server: Error fetching balances:', balanceError);
+          // Fall back to zeros if balance fetching fails
+          return NextResponse.json({
+            address: evmAccount.address,
+            balance: "0.00",
+            usdcBalance: "0.00",
+            isConnected: true
+          });
+        }
       } catch (error) {
         console.error('Server: Error in CDP wallet creation:', error);
         return NextResponse.json(
@@ -82,11 +160,19 @@ export async function POST(request: NextRequest) {
         );
       }
       
-      // For now, return mock values - in production we would implement actual balance checking
-      return NextResponse.json({
-        balance: "0.01",
-        usdcBalance: "10.00"
-      });
+      try {
+        const balances = await getAccountBalances(address);
+        return NextResponse.json({
+          balance: balances.ethBalance,
+          usdcBalance: balances.usdcBalance
+        });
+      } catch (error) {
+        console.error('Server: Error getting balances:', error);
+        return NextResponse.json({
+          balance: "0.00",
+          usdcBalance: "0.00"
+        });
+      }
     }
     
     return NextResponse.json(

@@ -79,10 +79,7 @@ export default function Home() {
     }
   };
 
-  // Initialize the game once
-  useEffect(() => {
-    startNewGame();
-  }, [startNewGame]);
+  // Note: We don't auto-start a game anymore - users must explicitly start one
   
   // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
@@ -117,7 +114,7 @@ export default function Home() {
         const hasEnoughBalance = parseFloat(walletInfo.usdcBalance) >= MIN_BALANCE_TO_PLAY;
         
         if (hasEnoughBalance) {
-          sendMessage(`Hello! I'm authenticated as ${userInfo.displayName}. My CDP wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Let's play Wordle!`);
+          sendMessage(`Hello! I'm authenticated as ${userInfo.displayName}. My CDP wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Ready for some word puzzles!`);
         } else {
           sendMessage(`I'm authenticated as ${userInfo.displayName}, but my CDP wallet only has ${walletInfo.usdcBalance} USDC. How do I get more USDC tokens?`);
         }
@@ -344,7 +341,11 @@ export default function Home() {
             />
             {isGameOver && (
               <button 
-                onClick={startNewGame}
+                onClick={() => {
+                  startNewGame();
+                  clearMessages();
+                  handleSendMessage("start wordle");
+                }}
                 className="mt-4 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all duration-200 font-semibold mx-auto block shadow-md hover:shadow-lg"
               >
                 Play Again

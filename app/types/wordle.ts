@@ -19,4 +19,4 @@ export interface WalletInfo {
 // Game constants
 export const WORD_LENGTH = 5;
 export const MAX_GUESSES = 6;
-export const MIN_BALANCE_TO_PLAY = 10; // Minimum USDC balance required to play (changed from ETH) 
+export const MIN_BALANCE_TO_PLAY = 1; // Minimum USDC balance required to play 

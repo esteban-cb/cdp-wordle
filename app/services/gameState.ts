@@ -10,10 +10,29 @@ const WORD_LIST = [
 ];
 
 // Store active games in memory (in a real app, this would be in a database)
-const activeGames: Map<string, { targetWord: string, guesses: string[] }> = new Map();
+// Using a global variable to persist across module reloads in development
+declare global {
+  var activeWordle: Map<string, { targetWord: string, guesses: string[] }> | undefined;
+}
+
+const activeGames: Map<string, { targetWord: string, guesses: string[] }> = 
+  globalThis.activeWordle ?? new Map();
+
+if (!globalThis.activeWordle) {
+  globalThis.activeWordle = activeGames;
+}
 
 // Store conversation history for AgentKit interactions
-const conversationHistory: Map<string, { text: string, sender: "user" | "agent" }[]> = new Map();
+declare global {
+  var wordleConversation: Map<string, { text: string, sender: "user" | "agent" }[]> | undefined;
+}
+
+const conversationHistory: Map<string, { text: string, sender: "user" | "agent" }[]> = 
+  globalThis.wordleConversation ?? new Map();
+
+if (!globalThis.wordleConversation) {
+  globalThis.wordleConversation = conversationHistory;
+}
 
 // Generate a new random word for a game
 export function getRandomWord(): string {
@@ -23,18 +42,33 @@ export function getRandomWord(): string {
 
 // Get or create game state for a user
 export function getOrCreateGameState(userId: string): { targetWord: string, guesses: string[] } {
+  console.log("getOrCreateGameState called for user:", userId);
+  console.log("Current activeGames size:", activeGames.size);
+  console.log("Current activeGames keys:", Array.from(activeGames.keys()));
+  
   if (!activeGames.has(userId)) {
+    const newWord = getRandomWord();
+    console.log("Creating NEW game state for user:", userId, "with word:", newWord);
     activeGames.set(userId, {
-      targetWord: getRandomWord(),
+      targetWord: newWord,
       guesses: []
     });
+    // Update global reference
+    globalThis.activeWordle = activeGames;
+  } else {
+    console.log("Using EXISTING game state for user:", userId);
+    const existing = activeGames.get(userId)!;
+    console.log("Existing game state:", existing);
   }
   return activeGames.get(userId)!;
 }
 
 // Set game state for a user (used when starting a new game)
 export function setGameState(userId: string, gameState: { targetWord: string, guesses: string[] }): void {
+  console.log("setGameState called for user:", userId, "with state:", gameState);
   activeGames.set(userId, gameState);
+  // Update global reference
+  globalThis.activeWordle = activeGames;
 }
 
 // Delete game state for a user (used when game ends)
