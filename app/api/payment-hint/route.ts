@@ -7,7 +7,7 @@ import { LocalAccount } from "viem";
 import { getOrCreateGameState } from "../../services/gameState";
 
 // Define static values
-const baseURL = "http://localhost:4021";
+const baseURL = "https://ippt4twld3.execute-api.us-east-1.amazonaws.com/prod";
 const endpointPath = "/hint";
 
 // Initialize CDP client on the server-side
