@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
-import { LetterStatus, KeyboardStatus, WordleGuess, MAX_GUESSES, WORD_LENGTH } from '../types/wordle';
+import { LetterStatus, KeyboardStatus, WordleGuess, MAX_GUESSES } from '../types/wordle';
 
 // Context value type
 interface GameContextValue {

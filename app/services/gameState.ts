@@ -12,6 +12,7 @@ const WORD_LIST = [
 // Store active games in memory (in a real app, this would be in a database)
 // Using a global variable to persist across module reloads in development
 declare global {
+  // eslint-disable-next-line no-var
   var activeWordle: Map<string, { targetWord: string, guesses: string[] }> | undefined;
 }
 
@@ -24,6 +25,7 @@ if (!globalThis.activeWordle) {
 
 // Store conversation history for AgentKit interactions
 declare global {
+  // eslint-disable-next-line no-var
   var wordleConversation: Map<string, { text: string, sender: "user" | "agent" }[]> | undefined;
 }
 

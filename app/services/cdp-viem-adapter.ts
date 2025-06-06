@@ -14,6 +14,25 @@ interface CDPAccount {
 }
 
 /**
+ * Optional callback for tracking signing events
+ */
+interface SigningEventCallback {
+  onSigningAttempted?: (type: 'message' | 'typedData' | 'transaction' | 'hash') => void;
+  onSigningSuccess?: (type: 'message' | 'typedData' | 'transaction' | 'hash') => void;
+  onSigningError?: (type: 'message' | 'typedData' | 'transaction' | 'hash', error: Error) => void;
+}
+
+/**
+ * Type for EIP-712 typed data input
+ */
+interface TypedDataInput {
+  domain: Record<string, unknown>;
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message: Record<string, unknown>;
+}
+
+/**
  * CDP-to-Viem Account Adapter for X402 Integration
  * 
  * Bridges CDP SDK's server-side signing with viem's account interface.
@@ -21,7 +40,8 @@ interface CDPAccount {
  */
 export function createViemAccountFromCDP(
   cdpAccount: CDPAccount,
-  cdpClient: CdpClient
+  cdpClient: CdpClient,
+  signingCallback?: SigningEventCallback
 ): LocalAccount {
   const address = cdpAccount.address as `0x${string}`;
 
@@ -54,6 +74,7 @@ export function createViemAccountFromCDP(
     // Sign a message using CDP client
     async signMessage({ message }: { message: SignableMessage }): Promise<`0x${string}`> {
       console.log('🔐 CDP Adapter: Signing message...');
+      signingCallback?.onSigningAttempted?.('message');
       
       try {
         // Handle different message formats from viem
@@ -72,25 +93,30 @@ export function createViemAccountFromCDP(
         });
         
         console.log('✅ CDP Adapter: Message signed');
+        signingCallback?.onSigningSuccess?.('message');
         return extractSignature(result);
       } catch (error) {
         console.error('❌ CDP Adapter: Failed to sign message:', error);
+        signingCallback?.onSigningError?.('message', error as Error);
         throw error;
       }
     },
 
     // Sign typed data (EIP-712) - CRITICAL for X402 payment authorization
-    async signTypedData(typedDataInput: any): Promise<`0x${string}`> {
+    async signTypedData(typedDataInput: Record<string, unknown>): Promise<`0x${string}`> {
       console.log('🔐 CDP Adapter: Signing EIP-712 typed data for X402...', { 
-        domain: typedDataInput.domain?.name,
-        primaryType: typedDataInput.primaryType 
+        domain: (typedDataInput as { domain?: { name?: string } }).domain?.name,
+        primaryType: (typedDataInput as { primaryType?: string }).primaryType 
       });
+      signingCallback?.onSigningAttempted?.('typedData');
       
       try {
+        const input = typedDataInput as unknown as TypedDataInput;
+        
         // Ensure EIP712Domain type is included (required by CDP SDK)
         const typesWithDomain = {
-          ...typedDataInput.types,
-          EIP712Domain: typedDataInput.types.EIP712Domain || [
+          ...input.types,
+          EIP712Domain: input.types.EIP712Domain || [
             { name: "name", type: "string" },
             { name: "version", type: "string" },
             { name: "chainId", type: "uint256" },
@@ -101,16 +127,18 @@ export function createViemAccountFromCDP(
         // Use CDP client's signTypedData method - this is the key method for X402
         const result = await cdpClient.evm.signTypedData({
           address: cdpAccount.address as `0x${string}`,
-          domain: typedDataInput.domain,
+          domain: input.domain,
           types: typesWithDomain,
-          primaryType: typedDataInput.primaryType,
-          message: typedDataInput.message,
+          primaryType: input.primaryType,
+          message: input.message,
         });
         
         console.log('✅ CDP Adapter: EIP-712 typed data signed successfully');
+        signingCallback?.onSigningSuccess?.('typedData');
         return extractSignature(result);
       } catch (error) {
         console.error('❌ CDP Adapter: Failed to sign typed data:', error);
+        signingCallback?.onSigningError?.('typedData', error as Error);
         throw error;
       }
     },
@@ -118,6 +146,7 @@ export function createViemAccountFromCDP(
     // Basic transaction signing - simplified for X402 use case
     async signTransaction(transaction: Record<string, unknown>): Promise<`0x${string}`> {
       console.log('🔐 CDP Adapter: Transaction signing requested');
+      signingCallback?.onSigningAttempted?.('transaction');
       
       try {
         // For X402, we mainly need message/typed data signing
@@ -128,22 +157,19 @@ export function createViemAccountFromCDP(
         });
         
         console.log('✅ CDP Adapter: Transaction signed');
+        signingCallback?.onSigningSuccess?.('transaction');
         return extractSignature(result);
       } catch (error) {
         console.error('❌ CDP Adapter: Failed to sign transaction:', error);
+        signingCallback?.onSigningError?.('transaction', error as Error);
         throw error;
       }
-    },
-
-    // Authorization signing (delegate to typed data)
-    async signAuthorization(authorization: any): Promise<any> {
-      console.log('🔐 CDP Adapter: Authorization signing (delegating to signTypedData)');
-      return this.signTypedData(authorization);
     },
 
     // Simple hash signing
     async sign({ hash }: { hash: `0x${string}` }): Promise<`0x${string}`> {
       console.log('🔐 CDP Adapter: Hash signing');
+      signingCallback?.onSigningAttempted?.('hash');
       
       try {
         const result = await cdpClient.evm.signMessage({
@@ -152,9 +178,11 @@ export function createViemAccountFromCDP(
         });
         
         console.log('✅ CDP Adapter: Hash signed');
+        signingCallback?.onSigningSuccess?.('hash');
         return extractSignature(result);
       } catch (error) {
         console.error('❌ CDP Adapter: Failed to sign hash:', error);
+        signingCallback?.onSigningError?.('hash', error as Error);
         throw error;
       }
     },

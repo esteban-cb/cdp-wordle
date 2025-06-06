@@ -1,10 +1,6 @@
-import { formatEther, parseEther } from "viem";
 import { WalletInfo } from '../types/wordle';
 // Import dotenv to ensure environment variables are loaded
 import 'dotenv/config';
-
-// Base Sepolia USDC contract address
-const BASE_SEPOLIA_USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 
 // Wallet state variables
 let walletAddress: string | null = null;
@@ -133,12 +129,8 @@ export async function getUSDCBalance(address: string): Promise<string> {
 /**
  * Process a user message related to wallet functions
  * @param userMessage The user's message
- * @param previousMessages Previous conversation messages
  */
-export async function processMessage(
-  userMessage: string,
-  previousMessages: any[] = []
-): Promise<string> {
+export async function processMessage(userMessage: string): Promise<string> {
   try {
     // Handle basic wallet queries
     const message = userMessage.toLowerCase();

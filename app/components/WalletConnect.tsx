@@ -140,7 +140,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onWalletConnected }) => {
     }, 30000); // Check every 30 seconds
     
     return () => clearInterval(checkInterval);
-  }, [walletInfo.isConnected, walletInfo.address, walletInfo.balance, walletInfo.usdcBalance, onWalletConnected]);
+  }, [walletInfo, onWalletConnected]);
 
   const getWalletBalance = async (address: string): Promise<string> => {
     try {
@@ -251,7 +251,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onWalletConnected }) => {
       ...walletInfo,
       // Set a special flag to trigger a message asking for funds
       requestingFunds: true
-    } as any);
+    } as WalletInfo);
     
     setTimeout(() => {
       setIsRequestingFunds(false);
@@ -269,7 +269,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onWalletConnected }) => {
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: baseSepoliaChainId }],
-      }).catch(async (switchError: any) => {
+      }).catch(async (switchError: { code?: number; message?: string }) => {
         // This error code indicates that the chain has not been added to MetaMask
         if (switchError.code === 4902) {
           await window.ethereum.request({
@@ -379,6 +379,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({ onWalletConnected }) => {
 // Add type declaration for window.ethereum
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ethereum: any;
   }
 }

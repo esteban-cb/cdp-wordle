@@ -80,7 +80,12 @@ try {
   console.log("CDP_API_KEY_SECRET exists:", !!process.env.CDP_API_KEY_SECRET);
   console.log("CDP_WALLET_SECRET exists:", !!process.env.CDP_WALLET_SECRET);
   
-  cdpClient = new CdpClient();
+  // Initialize with explicit configuration to ensure environment variables are used
+  cdpClient = new CdpClient({
+    apiKeyId: process.env.CDP_API_KEY_ID,
+    apiKeySecret: process.env.CDP_API_KEY_SECRET,
+    walletSecret: process.env.CDP_WALLET_SECRET?.trim(), // Trim any whitespace
+  });
   console.log("Server: CDP client initialized successfully");
 } catch (error) {
   console.error('Server: Error initializing CDP client:', error);
@@ -95,7 +100,11 @@ export async function POST(request: NextRequest) {
     if (!cdpClient) {
       try {
         console.log("Server: Attempting to reinitialize CDP client...");
-        cdpClient = new CdpClient();
+        cdpClient = new CdpClient({
+          apiKeyId: process.env.CDP_API_KEY_ID,
+          apiKeySecret: process.env.CDP_API_KEY_SECRET,
+          walletSecret: process.env.CDP_WALLET_SECRET?.trim(), // Trim any whitespace
+        });
         console.log("Server: CDP client reinitialized successfully");
       } catch (error) {
         console.error('Server: Failed to reinitialize CDP client:', error);

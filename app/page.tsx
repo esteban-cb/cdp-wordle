@@ -13,6 +13,7 @@ import { useAuth } from './contexts/AuthContext';
 import { useWallet } from './contexts/WalletContext';
 import { useGame } from './contexts/GameContext';
 import { getPaymentHint } from './services/payment_hint';
+import { requestTestnetFunds } from './services/request_funds';
 
 /**
  * Home page for the CDP Wordle Application
@@ -44,6 +45,7 @@ export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
   const [isGettingHint, setIsGettingHint] = useState(false);
+  const [isGettingFunds, setIsGettingFunds] = useState(false);
   
   // Refs to track state
   const welcomeMessageSent = useRef(false);
@@ -65,9 +67,127 @@ export default function Home() {
       const result = await getPaymentHint(walletInfo);
       console.log('Payment hint result:', result);
       
-      // Send the hint to the chat
+      // Send detailed payment information to the chat
       if (result && result.hint) {
-        sendMessage(`Payment successful! Here's your hint: ${result.hint}`);
+        let detailedMessage = `💰 **X402 Payment Successful!**\n\n`;
+        detailedMessage += `🎯 **Your Hint:** ${result.hint}\n\n`;
+        detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+        
+        // Add comprehensive X402 payment details if available
+        if (result.paymentDetails) {
+          const details = result.paymentDetails;
+          
+          // Basic Payment Information
+          detailedMessage += `📋 **Payment Summary**\n\n`;
+          detailedMessage += `⏰ **Timestamp:** ${new Date(details.timestamp).toLocaleString()}\n\n`;
+          detailedMessage += `👛 **Wallet:** \`${details.walletAddress.substring(0, 10)}...${details.walletAddress.substring(details.walletAddress.length - 8)}\`\n\n`;
+          detailedMessage += `🌐 **Resource:** ${details.paymentResource}\n\n`;
+          detailedMessage += `✅ **Status:** ${details.paymentSuccessful ? '🟢 Success' : '🔴 Failed'}\n\n`;
+          detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          
+          // X402 Protocol Information
+          if (details.x402ProtocolVersion || details.paymentScheme || details.paymentNetwork) {
+            detailedMessage += `🔗 **X402 Protocol Details**\n\n`;
+            if (details.x402ProtocolVersion) {
+              detailedMessage += `📦 **Protocol Version:** v${details.x402ProtocolVersion}\n\n`;
+            }
+            if (details.paymentScheme) {
+              detailedMessage += `⚡ **Payment Scheme:** ${details.paymentScheme}\n\n`;
+            }
+            if (details.paymentNetwork) {
+              detailedMessage += `🌐 **Network:** ${details.paymentNetwork} (Base Sepolia)\n\n`;
+            }
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          // Transaction & Settlement Details
+          if (details.transactionHash || details.networkId || details.settlementDetails) {
+            detailedMessage += `⛓️ **Blockchain Transaction**\n\n`;
+            if (details.transactionHash) {
+              detailedMessage += `🔗 **Transaction Hash:**\n\`${details.transactionHash}\`\n\n`;
+              detailedMessage += `🔍 **View on Explorer:**\n[BaseScan →](https://sepolia.basescan.org/tx/${details.transactionHash})\n\n`;
+            }
+            if (details.networkId) {
+              detailedMessage += `🌐 **Network ID:** ${details.networkId}\n\n`;
+            }
+            if (details.settlementDetails) {
+              detailedMessage += `✅ **Settlement:** Confirmed on blockchain\n\n`;
+            }
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          // CDP Integration Status
+          detailedMessage += `🏗️ **CDP Integration Status**\n\n`;
+          detailedMessage += `${details.cdpAccountCreated ? '✅' : '❌'} **CDP Account:** ${details.cdpAccountCreated ? 'Created successfully' : 'Failed to create'}\n\n`;
+          detailedMessage += `${details.viemAdapterCreated ? '✅' : '❌'} **Viem Adapter:** ${details.viemAdapterCreated ? 'Initialized successfully' : 'Failed to initialize'}\n\n`;
+          detailedMessage += `${details.x402PaymentAttempted ? '✅' : '❌'} **X402 Payment:** ${details.x402PaymentAttempted ? 'Payment attempted' : 'No payment attempt'}\n\n`;
+          detailedMessage += `${details.eip712SigningSuccessful ? '✅' : (details.eip712SigningAttempted ? '⚠️' : '❌')} **EIP-712 Signing:** ${details.eip712SigningSuccessful ? 'Signed successfully' : (details.eip712SigningAttempted ? 'Attempted but failed' : 'Not attempted')}\n\n`;
+          detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          
+          // Payment Execution Response Details
+          if (details.paymentExecutionResponse) {
+            detailedMessage += `📊 **Payment Execution Response**\n\n`;
+            const execResponse = details.paymentExecutionResponse;
+            if (typeof execResponse === 'object') {
+              Object.entries(execResponse).forEach(([key, value]) => {
+                if (key === 'txHash' && value) {
+                  detailedMessage += `**Transaction Hash:** \`${value}\`\n\n`;
+                } else if (key === 'success' && value !== null) {
+                  detailedMessage += `**Success:** ${value ? '✅ True' : '❌ False'}\n\n`;
+                } else if (key === 'networkId' && value) {
+                  detailedMessage += `**Network ID:** ${value}\n\n`;
+                } else if (value !== null && value !== undefined && key !== 'txHash' && key !== 'success' && key !== 'networkId') {
+                  const displayValue = typeof value === 'string' ? value : JSON.stringify(value);
+                  detailedMessage += `**${key}:** ${displayValue}\n\n`;
+                }
+              });
+            }
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          // Signing Events Timeline
+          if (details.signingEvents && details.signingEvents.length > 0) {
+            detailedMessage += `📝 **Payment Process Timeline**\n\n`;
+            details.signingEvents.forEach((event: string, index: number) => {
+              detailedMessage += `**${index + 1}.** ${event}\n\n`;
+            });
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          // Error Information (if any)
+          if (details.fallbackUsed && details.errorMessage) {
+            detailedMessage += `⚠️ **Payment Notice**\n\n`;
+            detailedMessage += `**Fallback Mode:** Used due to API unavailability\n\n`;
+            detailedMessage += `**Reason:** ${details.errorMessage}\n\n`;
+            detailedMessage += `**Hint Source:** Generated locally\n\n`;
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          // Additional X402 Details
+          if (details.maxAmountRequired || details.assetAddress || details.payToAddress) {
+            detailedMessage += `💎 **Payment Configuration**\n\n`;
+            if (details.maxAmountRequired) {
+              detailedMessage += `💰 **Max Amount:** ${details.maxAmountRequired}\n\n`;
+            }
+            if (details.assetAddress) {
+              detailedMessage += `🪙 **Asset Contract:** \`${details.assetAddress}\`\n\n`;
+            }
+            if (details.payToAddress) {
+              detailedMessage += `📤 **Pay To Address:** \`${details.payToAddress}\`\n\n`;
+            }
+            if (details.paymentDescription) {
+              detailedMessage += `📝 **Description:** ${details.paymentDescription}\n\n`;
+            }
+            detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+          }
+          
+          detailedMessage += `🎮 **Next Steps**\n\n`;
+          detailedMessage += `🎯 **Use this hint to solve today's Wordle puzzle!**\n\n`;
+          detailedMessage += `📊 **Guesses Remaining:** ${6 - guesses.length} out of 6\n\n`;
+          detailedMessage += `💡 **Tip:** The hint tells you one letter that's in the target word!`;
+        }
+        
+        sendMessage(detailedMessage);
       } else {
         sendMessage('Failed to get payment hint from the server.');
       }
@@ -76,6 +196,33 @@ export default function Home() {
       sendMessage('Error occurred while getting payment hint.');
     } finally {
       setIsGettingHint(false);
+    }
+  };
+
+  // Handle get funds button click
+  const handleGetFunds = async () => {
+    if (!walletInfo.isConnected || !walletInfo.address) {
+      alert('Please ensure your wallet is connected first.');
+      return;
+    }
+
+    setIsGettingFunds(true);
+    try {
+      // Call the request testnet funds function
+      const result = await requestTestnetFunds(walletInfo);
+      console.log('Request funds result:', result);
+      
+      // Send the result to the chat
+      if (result && result.success) {
+        sendMessage(`Funds requested successfully! ${result.message}`);
+      } else {
+        sendMessage('Failed to request funds from the server.');
+      }
+    } catch (error) {
+      console.error('Error requesting funds:', error);
+      sendMessage('Error occurred while requesting funds. You can also get funds from the Base Sepolia faucet at https://www.coinbase.com/faucets/base-sepolia-faucet');
+    } finally {
+      setIsGettingFunds(false);
     }
   };
 
@@ -371,6 +518,18 @@ export default function Home() {
               title="Get payment hint from server"
             >
               {isGettingHint ? 'Getting...' : 'Get Hint'}
+            </button>
+            <button
+              onClick={handleGetFunds}
+              disabled={isGettingFunds || !walletInfo.isConnected}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                isGettingFunds || !walletInfo.isConnected
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+              }`}
+              title="Request testnet funds using CDP AgentKit"
+            >
+              {isGettingFunds ? 'Requesting...' : 'Get Funds'}
             </button>
           </div>
           <div className="flex items-center space-x-3">

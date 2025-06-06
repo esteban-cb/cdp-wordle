@@ -4,20 +4,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import '../styles/passage.css';
 import { useAuth } from '../contexts/AuthContext';
 
-// Define types for user data
-interface UserMetadata {
-  username?: string;
-  [key: string]: unknown;
-}
-
-interface PassageUser {
-  id: string;
-  email?: string;
-  display_name?: string;
-  userMetadata?: UserMetadata;
-  [key: string]: unknown;
-}
-
 const PassageAuth: React.FC = () => {
   const { isAuthenticated, isLoading, logout, checkAuthStatus } = useAuth();
   const [appId, setAppId] = useState<string>('');
@@ -176,6 +162,7 @@ declare global {
 
 // Add type declaration for passage-auth custom element
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
     interface IntrinsicElements {
       'passage-auth': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {

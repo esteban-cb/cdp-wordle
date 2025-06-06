@@ -26,7 +26,7 @@ const UserInfoModal: React.FC<UserInfoModalProps> = ({
       await navigator.clipboard.writeText(text);
       setCopySuccess('Copied!');
       setTimeout(() => setCopySuccess(''), 2000);
-    } catch (err) {
+    } catch {
       setCopySuccess('Failed to copy');
     }
   };
