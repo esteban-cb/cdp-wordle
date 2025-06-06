@@ -12,6 +12,7 @@ import UserInfoModal from './components/UserInfoModal';
 import { useAuth } from './contexts/AuthContext';
 import { useWallet } from './contexts/WalletContext';
 import { useGame } from './contexts/GameContext';
+import { getPaymentHint } from './services/payment_hint';
 
 /**
  * Home page for the CDP Wordle Application
@@ -42,12 +43,41 @@ export default function Home() {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
+  const [isGettingHint, setIsGettingHint] = useState(false);
   
   // Refs to track state
   const welcomeMessageSent = useRef(false);
   const walletInitialized = useRef(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Handle payment hint button click
+  const handleGetPaymentHint = async () => {
+    if (!walletInfo.isConnected || !walletInfo.address) {
+      alert('Please ensure your wallet is connected first.');
+      return;
+    }
+
+    setIsGettingHint(true);
+    try {
+      
+      // Call the payment hint function
+      const result = await getPaymentHint(walletInfo);
+      console.log('Payment hint result:', result);
+      
+      // Send the hint to the chat
+      if (result && result.hint) {
+        sendMessage(`Payment successful! Here's your hint: ${result.hint}`);
+      } else {
+        sendMessage('Failed to get payment hint from the server.');
+      }
+    } catch (error) {
+      console.error('Error getting payment hint:', error);
+      sendMessage('Error occurred while getting payment hint.');
+    } finally {
+      setIsGettingHint(false);
+    }
+  };
 
   // Initialize the game once
   useEffect(() => {
@@ -327,7 +357,21 @@ export default function Home() {
       {/* Chat interface */}
       <div className="chat-section md:w-1/2 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex flex-col">
         <div className="chat-header flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
+          <div className="flex items-center space-x-3">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
+            <button
+              onClick={handleGetPaymentHint}
+              disabled={isGettingHint || !walletInfo.isConnected}
+              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                isGettingHint || !walletInfo.isConnected
+                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+              }`}
+              title="Get payment hint from server"
+            >
+              {isGettingHint ? 'Getting...' : 'Get Hint'}
+            </button>
+          </div>
           <div className="flex items-center space-x-3">
             {userInfo && walletInfo.isConnected && (
               <div 
@@ -381,7 +425,7 @@ export default function Home() {
                     ),
                   }}
                 >
-                  {msg.text}
+                  {msg.text.split('---EVALUATION---')[0].trim()}
                 </ReactMarkdown>
               </div>
             ))

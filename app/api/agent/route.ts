@@ -3,27 +3,14 @@ import { AgentRequest, AgentResponse } from "../../types/api";
 import { WORD_LENGTH } from "../../types/wordle";
 import * as walletService from "../../services/wallet";
 import { generatePrivateKey } from "viem/accounts";
-
-// List of 5-letter words for the Wordle game
-const WORD_LIST = [
-  "apple", "beach", "chart", "dance", "earth", "fault", "glass", "heart", "ivory", "joker",
-  "knife", "logic", "money", "night", "ocean", "piano", "query", "river", "solar", "table",
-  "unity", "virus", "water", "xenon", "youth", "zebra", "brain", "climb", "dream", "eagle",
-  "flame", "ghost", "house", "image", "jumbo", "knots", "lemon", "modal", "nurse", "olive",
-  "power", "queen", "radio", "storm", "tiger", "umbra", "vigor", "whale", "xylyl", "yacht"
-];
-
-// Store active games in memory (in a real app, this would be in a database)
-const activeGames: Map<string, { targetWord: string, guesses: string[] }> = new Map();
-
-// Store conversation history for AgentKit interactions
-const conversationHistory: Map<string, { text: string, sender: "user" | "agent" }[]> = new Map();
-
-// Generate a new random word for a game
-function getRandomWord(): string {
-  const randomIndex = Math.floor(Math.random() * WORD_LIST.length);
-  return WORD_LIST[randomIndex];
-}
+import { 
+  getOrCreateGameState, 
+  setGameState, 
+  deleteGameState, 
+  getConversationHistory, 
+  addToConversationHistory,
+  getRandomWord
+} from "../../services/gameState";
 
 // Check if a word is in our word list
 // function isValidWord(word: string): boolean {
@@ -92,31 +79,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Get a unique identifier for the user session (in a real app, use a proper user ID)
     const userId = "user123";
     
-    // Get conversation history or initialize if it doesn't exist
-    if (!conversationHistory.has(userId)) {
-      conversationHistory.set(userId, []);
-    }
-    const history = conversationHistory.get(userId)!;
+    // Get conversation history
+    const history = getConversationHistory(userId);
     
     // Add user message to history
-    history.push({ text: userMessage, sender: "user" });
+    addToConversationHistory(userId, { text: userMessage, sender: "user" });
     
-    // Initialize game state if it doesn't exist
-    if (!activeGames.has(userId)) {
-      activeGames.set(userId, {
-        targetWord: getRandomWord(),
-        guesses: []
-      });
-    }
-    
-    const gameState = activeGames.get(userId)!;
+    // Get or create game state
+    const gameState = getOrCreateGameState(userId);
     const message = userMessage.trim().toLowerCase();
     
     // Check for blockchain-specific commands
     if (message.includes("wallet address") || message.includes("my address")) {
       const address = walletService.getWalletAddress();
       const response = `Your wallet address is: ${address}`;
-      history.push({ text: response, sender: "agent" });
+      addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
     
@@ -126,7 +103,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         const balance = await walletService.getBalance(address);
         const usdcBalance = await walletService.getUSDCBalance(address);
         const response = `Your wallet balance is: ${usdcBalance} USDC (for gameplay) and ${balance} ETH (for gas fees).`;
-        history.push({ text: response, sender: "agent" });
+        addToConversationHistory(userId, { text: response, sender: "agent" });
         return NextResponse.json({ response } as AgentResponse);
       }
     }
@@ -143,7 +120,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           response = `There was an error requesting funds: ${result.error || 'Unknown error'}. Please try again later or use the faucet manually.`;
         }
         
-        history.push({ text: response, sender: "agent" });
+        addToConversationHistory(userId, { text: response, sender: "agent" });
         return NextResponse.json({ response } as AgentResponse);
       }
     }
@@ -161,7 +138,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ) {
       // Start a new game
       const newTargetWord = getRandomWord();
-      activeGames.set(userId, {
+      setGameState(userId, {
         targetWord: newTargetWord,
         guesses: []
       });
@@ -169,7 +146,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       console.log("New target word:", newTargetWord); // For debugging
       
       const response = "Great! I've selected a new 5-letter word! Make your first guess.";
-      history.push({ text: response, sender: "agent" });
+      addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
     
@@ -180,28 +157,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       gameState.guesses.push(message);
       
       // Evaluate the guess
-      const { evaluation } = evaluateGuess(message, gameState.targetWord);
+      const { letterStatuses, evaluation } = evaluateGuess(message, gameState.targetWord);
       
       // Check if the game is over
       const isWin = message === gameState.targetWord;
       const isLoss = gameState.guesses.length >= 6 && !isWin;
       
-      let response = evaluation;
+      // Create user-friendly message without verbose evaluation
+      let response = "";
       
       if (isWin) {
-        response += `\n\nCongratulations! You guessed the word "${gameState.targetWord.toUpperCase()}" correctly in ${gameState.guesses.length} ${gameState.guesses.length === 1 ? 'try' : 'tries'}.`;
+        response = `Congratulations! You guessed the word "${gameState.targetWord.toUpperCase()}" correctly in ${gameState.guesses.length} ${gameState.guesses.length === 1 ? 'try' : 'tries'}.`;
         // Reset game
-        activeGames.delete(userId);
+        deleteGameState(userId);
       } else if (isLoss) {
-        response += `\n\nGame over! You've used all your guesses. The word was "${gameState.targetWord.toUpperCase()}".`;
+        response = `Game over! You've used all your guesses. The word was "${gameState.targetWord.toUpperCase()}".`;
         // Reset game
-        activeGames.delete(userId);
+        deleteGameState(userId);
       } else {
-        // Game continues
-        response += `\n\nYou have ${6 - gameState.guesses.length} ${6 - gameState.guesses.length === 1 ? 'guess' : 'guesses'} remaining.`;
+        // Game continues - just show remaining guesses
+        response = `You have ${6 - gameState.guesses.length} ${6 - gameState.guesses.length === 1 ? 'guess' : 'guesses'} remaining.`;
       }
       
-      history.push({ text: response, sender: "agent" });
+      // Add evaluation data at the end for frontend parsing, separated by a marker
+      response += `\n\n---EVALUATION---\n${evaluation}`;
+      
+      addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
     
@@ -216,14 +197,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }))
       );
       
-      history.push({ text: agentResponse, sender: "agent" });
+      addToConversationHistory(userId, { text: agentResponse, sender: "agent" });
       return NextResponse.json({ response: agentResponse } as AgentResponse);
     } catch (error) {
       console.error("Error with AgentKit processing:", error);
       
       // Fall back to regular non-guess message handling
       const response = handleNonGuessMessage(message, gameState);
-      history.push({ text: response, sender: "agent" });
+      addToConversationHistory(userId, { text: response, sender: "agent" });
       return NextResponse.json({ response } as AgentResponse);
     }
     
