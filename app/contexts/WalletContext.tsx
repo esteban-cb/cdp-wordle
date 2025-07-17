@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { WalletInfo } from '../types/wordle';
 import { createCDPWallet, getWalletBalance } from '../services/wallet';
+import { useNetwork } from './NetworkContext';
 
 // Context value type
 interface WalletContextValue {
@@ -50,6 +51,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [initializedFor, setInitializedFor] = useState<string | null>(null);
+  
+  // Get current network from NetworkContext
+  const { currentNetwork } = useNetwork();
 
   const initializeWallet = useCallback(async (username: string) => {
     // Prevent duplicate initialization for the same user
@@ -74,7 +78,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     try {
       setIsRefreshing(true);
-      const balances = await getWalletBalance(walletInfo.address);
+      const balances = await getWalletBalance(walletInfo.address, currentNetwork);
       setWalletInfo(prev => ({
         ...prev,
         balance: balances.balance,
@@ -86,7 +90,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [walletInfo.address, walletInfo.isConnected, isRefreshing]);
+  }, [walletInfo.address, walletInfo.isConnected, isRefreshing, currentNetwork]);
 
   const clearWallet = useCallback(() => {
     setWalletInfo(defaultWalletInfo);

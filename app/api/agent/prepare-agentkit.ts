@@ -47,13 +47,16 @@ const WALLET_DATA_FILE = "wallet_data.txt";
  * Prepares the AgentKit and WalletProvider.
  *
  * @function prepareAgentkitAndWalletProvider
+ * @param networkId Optional network ID to use (defaults to base-sepolia)
  * @returns {Promise<{ agentkit: AgentKit, walletProvider: WalletProvider }>} The initialized AI agent.
  *
  * @description Handles agent setup
  *
  * @throws {Error} If the agent initialization fails.
  */
-export async function prepareAgentkitAndWalletProvider(): Promise<{
+export async function prepareAgentkitAndWalletProvider(
+  networkId: string = "base-sepolia"
+): Promise<{
   agentkit: AgentKit;
   walletProvider: WalletProvider;
 }> {
@@ -74,7 +77,7 @@ export async function prepareAgentkitAndWalletProvider(): Promise<{
     const walletProvider = await CdpWalletProvider.configureWithWallet({
       apiKeyName: process.env.CDP_API_KEY_NAME,
       apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
-      networkId: process.env.NETWORK_ID || "base-sepolia",
+      networkId: networkId,
       cdpWalletData: walletDataStr || undefined,
     });
 

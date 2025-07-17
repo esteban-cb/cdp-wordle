@@ -12,8 +12,10 @@ import UserInfoModal from './components/UserInfoModal';
 import { useAuth } from './contexts/AuthContext';
 import { useWallet } from './contexts/WalletContext';
 import { useGame } from './contexts/GameContext';
+import { useNetwork } from './contexts/NetworkContext';
 import { getPaymentHint } from './services/payment_hint';
 import { requestTestnetFunds } from './services/request_funds';
+import NetworkToggle from './components/NetworkToggle';
 
 /**
  * Home page for the CDP Wordle Application
@@ -25,6 +27,7 @@ export default function Home() {
   // Context hooks
   const { userInfo, isAuthenticated, isLoading: authLoading } = useAuth();
   const { walletInfo, isInitializing, initializeWallet, clearWallet } = useWallet();
+  const { currentNetwork } = useNetwork();
   const { 
     guesses, 
     keyStatus, 
@@ -38,7 +41,7 @@ export default function Home() {
   } = useGame();
 
   // Use the agent hook for chat functionality
-  const { messages, sendMessage, isThinking, clearMessages } = useAgent();
+  const { messages, sendMessage, isThinking, clearMessages } = useAgent(currentNetwork);
   
   // Local state for UI
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -46,7 +49,7 @@ export default function Home() {
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [isGettingFunds, setIsGettingFunds] = useState(false);
-  
+
   // Refs to track state
   const welcomeMessageSent = useRef(false);
   const walletInitialized = useRef(false);
@@ -64,7 +67,7 @@ export default function Home() {
     try {
       
       // Call the payment hint function
-      const result = await getPaymentHint(walletInfo);
+      const result = await getPaymentHint(walletInfo, currentNetwork);
       console.log('Payment hint result:', result);
       
       // Send detailed payment information to the chat
@@ -95,7 +98,8 @@ export default function Home() {
               detailedMessage += `⚡ **Payment Scheme:** ${details.paymentScheme}\n\n`;
             }
             if (details.paymentNetwork) {
-              detailedMessage += `🌐 **Network:** ${details.paymentNetwork} (Base Sepolia)\n\n`;
+              const networkName = currentNetwork?.name || "Unknown Network";
+              detailedMessage += `🌐 **Network:** ${details.paymentNetwork} (${networkName})\n\n`;
             }
             detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
           }
@@ -105,7 +109,8 @@ export default function Home() {
             detailedMessage += `⛓️ **Blockchain Transaction**\n\n`;
             if (details.transactionHash) {
               detailedMessage += `🔗 **Transaction Hash:**\n\`${details.transactionHash}\`\n\n`;
-              detailedMessage += `🔍 **View on Explorer:**\n[BaseScan →](https://sepolia.basescan.org/tx/${details.transactionHash})\n\n`;
+              const explorerUrl = currentNetwork?.blockExplorer || "https://basescan.org";
+              detailedMessage += `🔍 **View on Explorer:**\n[BaseScan →](${explorerUrl}/tx/${details.transactionHash})\n\n`;
             }
             if (details.networkId) {
               detailedMessage += `🌐 **Network ID:** ${details.networkId}\n\n`;
@@ -209,7 +214,7 @@ export default function Home() {
     setIsGettingFunds(true);
     try {
       // Call the request testnet funds function
-      const result = await requestTestnetFunds(walletInfo);
+      const result = await requestTestnetFunds(walletInfo, currentNetwork);
       console.log('Request funds result:', result);
       
       // Send the result to the chat
@@ -507,6 +512,7 @@ export default function Home() {
         <div className="chat-header flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800">
           <div className="flex items-center space-x-3">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
+            <NetworkToggle />
             <button
               onClick={handleGetPaymentHint}
               disabled={isGettingHint || !walletInfo.isConnected}

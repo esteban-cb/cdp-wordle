@@ -6,11 +6,12 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
 
 - **Classic Wordle Gameplay**: 6 attempts to guess a 5-letter word with color-coded feedback
 - **Blockchain Integration**: CDP-powered wallets for secure identity and payments
+- **Network Switching**: Toggle between Base Sepolia testnet and Base mainnet
 - **X402 Micropayments**: Pay with USDC for hints using the X402 payment protocol
 - **AI Chat Assistant**: Powered by AgentKit for game help and wallet operations
 - **Passkey Authentication**: Secure, passwordless login via Passage
 - **Real-time Balance Tracking**: ETH and USDC balance monitoring
-- **Testnet Faucet Integration**: Request Base Sepolia testnet funds
+- **Testnet Faucet Integration**: Request testnet funds (testnet only)
 - **Detailed Payment Tracking**: See X402 payment process including EIP-712 signing
 
 ## 🛠 Technologies Used
@@ -34,19 +35,22 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/your-username/cdp-wordle.git
    cd cdp-wordle
    ```
 
 2. **Install dependencies**
+
    ```bash
    npm install
    ```
 
 3. **Set up environment variables**
-   
+
    Create a `.env.local` file in the root directory:
+
    ```bash
    touch .env.local
    ```
@@ -57,25 +61,26 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
    # OpenAI Configuration
    # Get keys from OpenAI Platform: https://platform.openai.com/api-keys
    OPENAI_API_KEY=sk-proj-your_openai_api_key_here
-   
-   # CDP Configuration 
+
+   # CDP Configuration
    # Get keys from CDP Portal: https://portal.cdp.coinbase.com/
    CDP_API_KEY_ID=your_cdp_api_key_id_here
    CDP_API_KEY_SECRET=your_cdp_api_key_secret_here
    CDP_WALLET_SECRET=your_cdp_wallet_secret_here
    CDP_API_KEY_NAME=organizations/your_org_id/apiKeys/your_key_id
    CDP_API_KEY_PRIVATE_KEY="-----BEGIN EC PRIVATE KEY-----\nyour_private_key_here\n-----END EC PRIVATE KEY-----\n"
-   
+
    # Passage Authentication
    # Get from Passage Console: https://console.passage.id/
    PASSAGE_APP_ID=your_passage_app_id
    PASSAGE_API_KEY=your_passage_api_key
-   
+
    # Optional Configuration
    NETWORK_ID=base-sepolia
    ```
 
-   **🚨 CRITICAL SECURITY WARNINGS**: 
+   **🚨 CRITICAL SECURITY WARNINGS**:
+
    - **NEVER commit these keys to version control**
    - **NEVER share these keys publicly, in screenshots, or in messages**
    - **Regenerate ALL keys immediately if they become exposed**
@@ -83,6 +88,7 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
    - **Use different keys for development and production environments**
 
 4. **Start the development server**
+
    ```bash
    npm run dev
    ```
@@ -93,11 +99,13 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
 ## 🎯 How to Play
 
 ### Getting Started
+
 1. **Authenticate**: Click "Login" and use your passkey to authenticate via Passage
 2. **Get Funds**: Use the "Get Funds" button to request Base Sepolia testnet tokens (ETH for gas, USDC for gameplay)
 3. **Start Playing**: Say "start wordle" in the chat to begin a new game
 
 ### Gameplay
+
 1. **Make Guesses**: Type 5-letter words in the chat or use the virtual keyboard
 2. **Get Feedback**: Letters are color-coded:
    - 🟩 **Green**: Correct letter in correct position
@@ -107,7 +115,9 @@ A decentralized Wordle game built with [Coinbase Developer Platform (CDP)](https
 4. **Win or Learn**: You have 6 attempts to guess the word!
 
 ### X402 Payment Features
+
 When you purchase a hint, you'll see detailed payment information including:
+
 - CDP account creation status
 - Viem adapter initialization
 - X402 payment attempt details
@@ -117,19 +127,23 @@ When you purchase a hint, you'll see detailed payment information including:
 ## 🔧 Configuration
 
 ### Passage Setup
+
 1. Create an account at [Passage Console](https://console.passage.id/)
 2. Create a new app and note your App ID
 3. Configure your domain settings
 4. Add your API key for server-side operations
 
 ### CDP Setup
+
 1. Visit [CDP Portal](https://portal.cdp.coinbase.com/)
 2. Create API keys for your project
 3. Generate a wallet secret for server-side wallet operations
 4. Ensure your keys have Base Sepolia testnet access
 
 ### AgentKit Configuration
+
 The AI agent is configured in:
+
 - `/app/api/agent/route.ts` - Main agent logic
 - Game state management in `/app/services/gameState.ts`
 - Custom Wordle-specific responses and game logic
@@ -157,27 +171,49 @@ The AI agent is configured in:
 ## 🔑 Key Components
 
 ### Payment System
+
 - **X402 Integration**: Seamless USDC payments for hints
 - **EIP-712 Signing**: Secure transaction authorization
 - **CDP Viem Adapter**: Bridges CDP SDK with viem for X402 compatibility
 
 ### Game Logic
+
 - **Shared State**: Consistent game state between AI agent and payment endpoints
 - **Word Validation**: 5-letter word checking with feedback
 - **Hint Generation**: Random letter hints for the target word
 
 ### AI Assistant
+
 - **Game Help**: Explains rules and provides guidance
 - **Wallet Operations**: Balance checking and fund requests
 - **Context Awareness**: Understands game state and user needs
 
 ## 🌐 Network Information
 
-- **Blockchain**: Base Sepolia Testnet
+### Supported Networks
+
+**Base Sepolia Testnet**
+
+- **Chain ID**: 84532 (0x14a34)
 - **USDC Contract**: `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
-- **Faucets**: 
-  - ETH: [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-sepolia-faucet)
-  - USDC: Integrated via "Get Funds" button
+- **Block Explorer**: [Base Sepolia](https://sepolia.basescan.org)
+- **Faucet**: [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-sepolia-faucet)
+
+**Base Mainnet**
+
+- **Chain ID**: 8453 (0x2105)
+- **USDC Contract**: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- **Block Explorer**: [BaseScan](https://basescan.org)
+- **Note**: Faucet not available on mainnet
+
+### Network Switching
+
+Use the network toggle in the chat header to switch between testnet and mainnet. The app will automatically:
+
+- Update wallet balances for the selected network
+- Use the correct USDC contract address
+- Show appropriate faucet options (testnet only)
+- Update all blockchain interactions
 
 ## 🔒 Security Considerations
 
@@ -189,12 +225,15 @@ The AI agent is configured in:
 ## 🚀 Deployment
 
 ### Build for Production
+
 ```bash
 npm run build
 ```
 
 ### Environment Setup
+
 Ensure all environment variables are configured in your production environment:
+
 - OpenAI API key
 - Passage app credentials
 - CDP API keys
@@ -203,6 +242,7 @@ Ensure all environment variables are configured in your production environment:
 ## 🤝 Contributing
 
 Contributions are welcome! This project demonstrates:
+
 - CDP SDK integration
 - X402 payment protocol implementation
 - AgentKit AI assistant development
