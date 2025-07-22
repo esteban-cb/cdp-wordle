@@ -32,13 +32,16 @@ let agent: Agent;
  * If an agent instance already exists, it returns the existing one.
  *
  * @function getOrInitializeAgent
+ * @param networkId Optional network ID to use (defaults to base-sepolia)
  * @returns {Promise<ReturnType<typeof createReactAgent>>} The initialized AI agent.
  *
  * @description Handles agent setup
  *
  * @throws {Error} If the agent initialization fails.
  */
-export async function createAgent(): Promise<Agent> {
+export async function createAgent(
+  networkId: string = "base-sepolia"
+): Promise<Agent> {
   // If agent has already been initialized, return it
   if (agent) {
     return agent;
@@ -48,15 +51,20 @@ export async function createAgent(): Promise<Agent> {
     // Initialize LLM: https://platform.openai.com/docs/models#gpt-4o
     const model = openai("gpt-4o-mini");
 
-    const { agentkit, walletProvider } = await prepareAgentkitAndWalletProvider();
+    const { agentkit, walletProvider } = await prepareAgentkitAndWalletProvider(
+      networkId
+    );
 
     // Initialize Agent
-    const canUseFaucet = walletProvider.getNetwork().networkId == "base-sepolia";
+    const canUseFaucet =
+      walletProvider.getNetwork().networkId == "base-sepolia";
     const faucetMessage = `If you ever need funds, you can request them from the faucet.`;
     const cantUseFaucetMessage = `If you need funds, you can provide your wallet details and request funds from the user.`;
     const system = `
         You are a helpful agent that can interact onchain using the Coinbase Developer Platform AgentKit. You are 
-        empowered to interact onchain using your tools. ${canUseFaucet ? faucetMessage : cantUseFaucetMessage}.
+        empowered to interact onchain using your tools. ${
+          canUseFaucet ? faucetMessage : cantUseFaucetMessage
+        }.
         Before executing your first action, get the wallet details to see what network 
         you're on. If there is a 5XX (internal) HTTP error code, ask the user to try again later. If someone 
         asks you to do something you can't do with your currently available tools, you must say so, and 

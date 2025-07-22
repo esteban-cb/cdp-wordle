@@ -4,6 +4,7 @@ import React, { ReactNode } from 'react';
 import { AuthProvider } from './AuthContext';
 import { WalletProvider } from './WalletContext';
 import { GameProvider } from './GameContext';
+import { NetworkProvider } from './NetworkContext';
 
 interface AppProvidersProps {
   children: ReactNode;
@@ -17,8 +18,9 @@ interface AppProvidersProps {
  * 
  * The provider hierarchy is intentional:
  * 1. AuthProvider - Manages user authentication (outermost)
- * 2. WalletProvider - Manages CDP wallet operations (depends on auth)
- * 3. GameProvider - Manages game state (innermost, may depend on wallet)
+ * 2. NetworkProvider - Manages network switching (depends on auth)
+ * 3. WalletProvider - Manages CDP wallet operations (depends on auth and network)
+ * 4. GameProvider - Manages game state (innermost, may depend on wallet)
  * 
  * @param children - React components that will have access to all contexts
  * @returns JSX element with nested context providers
@@ -42,11 +44,13 @@ interface AppProvidersProps {
 export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
   return (
     <AuthProvider>
-      <WalletProvider>
-        <GameProvider>
-          {children}
-        </GameProvider>
-      </WalletProvider>
+      <NetworkProvider>
+        <WalletProvider>
+          <GameProvider>
+            {children}
+          </GameProvider>
+        </WalletProvider>
+      </NetworkProvider>
     </AuthProvider>
   );
 };
