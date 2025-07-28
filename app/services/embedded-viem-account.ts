@@ -105,10 +105,10 @@ export async function getViemAccount(): Promise<LocalAccount> {
       } else if (message && typeof message.hash === 'string') {
         // If message has a hash property, use it as a hex string
         messageToSign = message.hash;
-      } else if (message && message.raw) {
+      } else if (message && (message as any).raw) {
         // If message has raw bytes, convert to hex string
-        const rawBytes = message.raw instanceof Uint8Array ? message.raw : new Uint8Array(message.raw);
-        messageToSign = '0x' + Array.from(rawBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        const rawBytes = (message as any).raw instanceof Uint8Array ? (message as any).raw : new Uint8Array((message as any).raw);
+        messageToSign = '0x' + Array.from(rawBytes).map((b: any) => b.toString(16).padStart(2, '0')).join('');
       } else {
         console.error("❌ Unsupported message format in sign():", message);
         throw new Error('Unsupported message format in sign method');

@@ -10,8 +10,9 @@ export async function GET() {
     return NextResponse.json({
       targetWord: gameState.targetWord,
       guesses: gameState.guesses,
-      isComplete: gameState.isComplete,
-      isWon: gameState.isWon,
+      hintsUsed: gameState.hintsUsed,
+      isComplete: gameState.guesses.length >= 6 || gameState.guesses.includes(gameState.targetWord),
+      isWon: gameState.guesses.includes(gameState.targetWord),
     });
   } catch (error) {
     console.error("Error getting game state:", error);

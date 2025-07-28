@@ -105,7 +105,6 @@ export async function POST(request: NextRequest) {
           incrementHintUsage(userId);
           
           let actualTransactionHash = null;
-          let paymentAmount = null;
           let payerAddress = null;
           let paymentNetwork = null;
           

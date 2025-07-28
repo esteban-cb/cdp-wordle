@@ -5,14 +5,7 @@ import axios, { AxiosInstance, AxiosResponse } from "axios";
 import { getViemAccount } from "./embedded-viem-account";
 import { LocalAccount } from "viem";
 import { NetworkConfig } from "../types/wordle";
-import { 
-  trackRealPayment, 
-  verifyRealPayment, 
-  generateX402PaymentId, 
-  logRealPaymentDetails,
-  createRealPaymentProof,
-  type RealPaymentTransaction 
-} from "./payment-transaction-tracker";
+// Removed unused imports to fix build errors
 
 interface PaymentHintResponse {
   success: boolean;
