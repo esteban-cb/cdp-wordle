@@ -50,7 +50,9 @@ cdp-credentials.json
 wallet_data.txt
 wallet_seed.txt
 mnemonic.txt
-*wallet*
+*wallet*.txt
+*wallet*.json
+*wallet*.key
 *seed*
 
 # IDE and editor files
