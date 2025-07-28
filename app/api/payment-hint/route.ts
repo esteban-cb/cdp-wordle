@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withPaymentInterceptor, decodeXPaymentResponse } from "x402-axios";
-import axios, { AxiosInstance, AxiosResponse } from "axios";
-import {
-  createViemAccountFromCDP,
-  createCDPAccount,
-} from "../../services/cdp-viem-adapter";
-import { CdpClient } from "@coinbase/cdp-sdk";
-import { LocalAccount } from "viem";
-import { getOrCreateGameState } from "../../services/gameState";
+import { decodeXPaymentResponse } from "x402-axios";
+import { getOrCreateGameState, incrementHintUsage } from "../../services/gameState";
 import { NETWORKS, DEFAULT_NETWORK } from "../../config/networks";
 
 // Network-specific X402 payment endpoints
@@ -45,29 +38,15 @@ function getRandomLetterHint(targetWord: string): string {
   return `The word has ${article} ${randomLetter}`;
 }
 
-// Initialize CDP client
-let cdpClient: CdpClient | undefined = undefined;
-
-try {
-  cdpClient = new CdpClient({
-    apiKeyId: process.env.CDP_API_KEY_ID,
-    apiKeySecret: process.env.CDP_API_KEY_SECRET,
-    walletSecret: process.env.CDP_WALLET_SECRET?.trim(),
-  });
-  console.log("✅ CDP client initialized successfully");
-} catch (error) {
-  console.error("❌ Error initializing CDP client:", error);
-}
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { walletAddress, network } = body;
+    const { address, network, xPaymentHeader } = body;
 
-    console.log("🚀 Payment hint request started");
-    console.log("📍 Request details:", { walletAddress, network });
+    console.log("🚀 Payment hint proxy request started");
+    console.log("📍 Request details:", { address, network, hasXPaymentHeader: !!xPaymentHeader });
 
-    if (!walletAddress) {
+    if (!address) {
       return NextResponse.json(
         { error: "Wallet address is required" },
         { status: 400 }
@@ -75,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Use provided network or default to base-sepolia
-    const networkId = network || "base-sepolia";
+    const networkId = network?.id || "base-sepolia";
     const networkConfig = NETWORKS[networkId] || DEFAULT_NETWORK;
 
     console.log("🌐 Network configuration:", {
@@ -98,152 +77,243 @@ export async function POST(request: NextRequest) {
       guessCount: gameState.guesses.length,
     });
 
-    // Initialize CDP client if needed
-    if (!cdpClient) {
+    // If we have an X-PAYMENT header from the client, use it directly
+    if (xPaymentHeader) {
+      console.log("🔐 Using X-PAYMENT header from client-side embedded wallet");
+      
       try {
-        cdpClient = new CdpClient({
-          apiKeyId: process.env.CDP_API_KEY_ID,
-          apiKeySecret: process.env.CDP_API_KEY_SECRET,
-          walletSecret: process.env.CDP_WALLET_SECRET?.trim(),
+        // Make direct request to AWS endpoint with the X-PAYMENT header
+        const response = await fetch(`${baseURL}${endpointPath}`, {
+          method: 'GET',
+          headers: {
+            'X-PAYMENT': xPaymentHeader,
+            'User-Agent': 'CDP-Wordle-Proxy/1.0',
+            'Accept': 'application/json',
+          },
         });
-        console.log("🔧 CDP client re-initialized");
-      } catch (error) {
-        console.error("❌ Failed to initialize CDP client:", error);
-        return NextResponse.json(
-          { error: "CDP client initialization failed" },
-          { status: 500 }
-        );
-      }
-    }
 
-    // Create CDP account and viem adapter
-    console.log("🔑 Creating CDP account and viem adapter...");
-    const cdpAccount = createCDPAccount(walletAddress, "payment-account");
-    // Enhanced signing callback for detailed logging
-    const signingCallback = {
-      onSigningAttempted: (
-        type: "message" | "typedData" | "transaction" | "hash"
-      ) => {
-        console.log(`🔐 CDP signing attempted: ${type}`);
-      },
-      onSigningSuccess: (
-        type: "message" | "typedData" | "transaction" | "hash"
-      ) => {
-        console.log(`✅ CDP signing successful: ${type}`);
-      },
-      onSigningError: (
-        type: "message" | "typedData" | "transaction" | "hash",
-        error: Error
-      ) => {
-        console.log(`❌ CDP signing failed: ${type} - ${error.message}`);
-      },
-    };
+        console.log("📥 AWS endpoint response status:", response.status);
 
-    const viemAccount: LocalAccount = createViemAccountFromCDP(
-      cdpAccount,
-      cdpClient,
-      signingCallback
-    );
-    console.log("✅ Viem account created successfully");
-
-    // Create axios instance with X402 payment interceptor
-    console.log("⚡ Creating X402 payment interceptor...");
-    const api: AxiosInstance = withPaymentInterceptor(
-      axios.create({
-        baseURL,
-        timeout: 30000,
-      }),
-      viemAccount
-    );
-
-    // Add request interceptor to see what's being sent
-    api.interceptors.request.use(
-      (config) => {
-        console.log("📤 REQUEST INTERCEPTOR - Headers being sent:");
-        console.log("Authorization:", config.headers?.Authorization);
-        console.log("X-PAYMENT:", config.headers?.["X-PAYMENT"]);
-        console.log("All headers:", config.headers);
-        console.log("Request URL:", config.url);
-        console.log("Base URL:", config.baseURL);
-        console.log("Full URL:", `${config.baseURL}${config.url}`);
-
-        // Log JWT token if present in X-PAYMENT header
-        if (config.headers?.["X-PAYMENT"]) {
-          try {
-            const xPaymentHeader = config.headers["X-PAYMENT"];
-            console.log("🔐 X-PAYMENT Header (original):", xPaymentHeader);
-
-            // Remove base64 padding to match testnet behavior
-            const xPaymentWithoutPadding = xPaymentHeader.replace(/=+$/, "");
-            config.headers["X-PAYMENT"] = xPaymentWithoutPadding;
-            console.log(
-              "🔧 X-PAYMENT Header (padding removed):",
-              xPaymentWithoutPadding
-            );
-
-            // Decode the JWT payload (without verification, just for inspection)
-            const base64Payload = xPaymentHeader.split(".")[1];
-            if (base64Payload) {
-              const payload = JSON.parse(atob(base64Payload));
-              console.log("🔍 JWT Payload:", payload);
+        if (response.ok) {
+          const data = await response.json();
+          const xPaymentResponseHeader = response.headers.get('x-payment-response');
+          
+          console.log("✅ X402 Payment successful!");
+          console.log("📦 AWS response data:", data);
+          
+          // Increment hint usage since payment was successful
+          incrementHintUsage(userId);
+          
+          let actualTransactionHash = null;
+          let paymentAmount = null;
+          let payerAddress = null;
+          let paymentNetwork = null;
+          
+          if (xPaymentResponseHeader) {
+            const paymentResponse = decodeXPaymentResponse(xPaymentResponseHeader);
+            console.log("🔍 Full X402 Payment Response:", JSON.stringify(paymentResponse, null, 2));
+            
+            // Extract all useful payment details
+            if (paymentResponse) {
+              actualTransactionHash = paymentResponse.transaction;
+              payerAddress = paymentResponse.payer;
+              paymentNetwork = paymentResponse.network;
+              
+              console.log("🔗 Real transaction hash:", actualTransactionHash);
+              console.log("💰 Payer address:", payerAddress);
+              console.log("🌐 Payment network:", paymentNetwork);
+              console.log("✅ Payment success:", paymentResponse.success);
             }
-          } catch (e) {
-            console.log("Could not decode JWT:", e);
           }
+
+          // Get updated game state after incrementing hints
+          const updatedGameState = getOrCreateGameState(userId);
+          
+          return NextResponse.json({
+            success: true,
+            hint: letterHint,
+            data: data,
+            network: networkConfig,
+            gameState: updatedGameState,
+            paymentDetails: {
+              walletAddress: address,
+              timestamp: new Date().toISOString(),
+              cdpAccountCreated: true,
+              viemAdapterCreated: true,
+              x402PaymentAttempted: true,
+              x402ProtocolVersion: 1,
+              paymentScheme: "x402",
+              paymentNetwork: networkId,
+              paymentResource: endpointPath,
+              eip712SigningAttempted: true,
+              eip712SigningSuccessful: true,
+              paymentSuccessful: true,
+              transactionHash: actualTransactionHash || "via-x402-proxy",
+              settlementConfirmed: !!actualTransactionHash,
+              payerAddress: payerAddress,
+              confirmedPaymentNetwork: paymentNetwork,
+              awsResponseData: data,
+              networkId,
+              settlementDetails: data,
+              paymentExecutionResponse: data,
+              fallbackUsed: false,
+              errorMessage: null,
+              signingEvents: [
+                "Client-side embedded wallet created X-PAYMENT header",
+                "Server proxy forwarded X402 request",
+                "AWS endpoint processed payment",
+                "Payment completed successfully"
+              ],
+              maxAmountRequired: "1.00",
+              assetAddress: networkConfig.usdcAddress,
+              payToAddress: null,
+              paymentDescription: "Wordle hint payment via X402 protocol (proxied)"
+            }
+          });
+        } else {
+          const errorText = await response.text();
+          console.error("❌ AWS endpoint error:", response.status, errorText);
+          
+          return NextResponse.json({
+            success: true,
+            hint: letterHint,
+            fallback: true,
+            network: networkConfig,
+            error: `AWS returned ${response.status}: ${errorText}`,
+            paymentDetails: {
+              walletAddress: address,
+              timestamp: new Date().toISOString(),
+              cdpAccountCreated: true,
+              viemAdapterCreated: true,
+              x402PaymentAttempted: true,
+              x402ProtocolVersion: 1,
+              paymentScheme: "x402",
+              paymentNetwork: networkId,
+              paymentResource: endpointPath,
+              eip712SigningAttempted: true,
+              eip712SigningSuccessful: true,
+              paymentSuccessful: false,
+              transactionHash: null,
+              networkId,
+              settlementDetails: null,
+              paymentExecutionResponse: null,
+              fallbackUsed: true,
+              errorMessage: `AWS returned ${response.status}`,
+              signingEvents: [
+                "Client-side embedded wallet created X-PAYMENT header",
+                "Server proxy forwarded X402 request",
+                "AWS endpoint rejected payment - using fallback"
+              ],
+              maxAmountRequired: "1.00",
+              assetAddress: networkConfig.usdcAddress,
+              payToAddress: null,
+              paymentDescription: "Wordle hint payment (AWS error fallback)"
+            }
+          });
         }
-
-        return config;
-      },
-      (error) => {
-        console.error("❌ Request interceptor error:", error);
-        return Promise.reject(error);
+      } catch (fetchError: any) {
+        console.error("❌ Proxy fetch error:", fetchError);
+        
+        return NextResponse.json({
+          success: true,
+          hint: letterHint,
+          fallback: true,
+          network: networkConfig,
+          error: fetchError.message,
+          paymentDetails: {
+            walletAddress: address,
+            timestamp: new Date().toISOString(),
+            cdpAccountCreated: true,
+            viemAdapterCreated: true,
+            x402PaymentAttempted: true,
+            x402ProtocolVersion: 1,
+            paymentScheme: "x402",
+            paymentNetwork: networkId,
+            paymentResource: endpointPath,
+            eip712SigningAttempted: true,
+            eip712SigningSuccessful: true,
+            paymentSuccessful: false,
+            transactionHash: null,
+            networkId,
+            settlementDetails: null,
+            paymentExecutionResponse: null,
+            fallbackUsed: true,
+            errorMessage: fetchError.message,
+            signingEvents: [
+              "Client-side embedded wallet created X-PAYMENT header",
+              "Server proxy request failed - using fallback"
+            ],
+            maxAmountRequired: "1.00",
+            assetAddress: networkConfig.usdcAddress,
+            payToAddress: null,
+            paymentDescription: "Wordle hint payment (proxy error fallback)"
+          }
+        });
       }
-    );
-
-    try {
-      // Add request interceptor to log what's being sent
-      console.log("About to make request to:", `${baseURL}${endpointPath}`);
-      console.log("Network:", networkConfig.name);
-
-      const response: AxiosResponse = await api.get(endpointPath);
-      console.log("---Will Print on testnet but not mainnet---");
-      console.log(response.headers);
-      console.log(response.data);
-
-      const xPaymentResponseHeader = response.headers["x-payment-response"];
-      if (xPaymentResponseHeader) {
-        const paymentResponse = decodeXPaymentResponse(xPaymentResponseHeader);
-        console.log("X402 Payment Response:", paymentResponse);
-      }
-
-      return NextResponse.json({
-        success: true,
-        hint: letterHint,
-        data: response.data,
-        network: networkConfig,
-      });
-    } catch (error: any) {
-      console.log("--------ERROR CAUGHT--------------");
-      console.log("Error type:", error.constructor.name);
-      console.log("Error message:", error.message);
-      console.log("Error code:", error.code);
-      console.log("Response status:", error.response?.status);
-      console.log("Response data:", error.response?.data);
-      console.error(error.response?.data?.error);
-
+    } else {
+      // No X-PAYMENT header provided, return fallback
+      console.log("❌ No X-PAYMENT header provided - using fallback");
+      
       return NextResponse.json({
         success: true,
         hint: letterHint,
         fallback: true,
         network: networkConfig,
-        error: error.message,
+        error: "No X-PAYMENT header provided",
+        paymentDetails: {
+          walletAddress: address,
+          timestamp: new Date().toISOString(),
+          cdpAccountCreated: false,
+          viemAdapterCreated: false,
+          x402PaymentAttempted: false,
+          paymentSuccessful: false,
+          fallbackUsed: true,
+          errorMessage: "No X-PAYMENT header provided",
+          signingEvents: [
+            "No X-PAYMENT header - using fallback"
+          ],
+          maxAmountRequired: "1.00",
+          assetAddress: networkConfig.usdcAddress,
+          payToAddress: null,
+          paymentDescription: "Wordle hint (no payment header fallback)"
+        }
       });
     }
   } catch (error) {
-    console.error("💥 Payment hint error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    console.error("💥 Payment hint proxy error:", error);
+    
+    // Fallback hint without game state
+    const fallbackHint = "The word contains a vowel";
+    
+    return NextResponse.json({
+      success: true,
+      hint: fallbackHint,
+      fallback: true,
+      error: error instanceof Error ? error.message : "Unknown error",
+      paymentDetails: {
+        paymentSuccessful: false,
+        fallbackUsed: true,
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+        walletAddress: "unknown",
+        paymentResource: "/hint",
+        networkId: "base-sepolia",
+        signingEvents: [
+          "Server error - using fallback"
+        ]
+      }
+    });
   }
+}
+
+// Handle preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Payment',
+    },
+  });
 }

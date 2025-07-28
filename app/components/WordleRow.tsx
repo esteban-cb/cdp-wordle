@@ -22,7 +22,7 @@ const WordleRow: React.FC<WordleRowProps> = ({ guess = '', result = [] }) => {
   });
 
   return (
-    <div className="flex justify-center mb-1 mt-1">
+    <div className="flex justify-center mb-2 gap-1">
       {tiles}
     </div>
   );

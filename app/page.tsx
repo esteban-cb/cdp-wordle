@@ -4,16 +4,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import WordleRow from './components/WordleRow';
 import WordleKeyboard from './components/WordleKeyboard';
 import HowToPlayModal from './components/HowToPlayModal';
-import PassageAuth from './components/PassageAuth';
+import EmbeddedAuth from './components/EmbeddedAuth';
+import PrivateKeyExportModal from './components/PrivateKeyExportModal';
 import { LetterStatus, MIN_BALANCE_TO_PLAY, WORD_LENGTH } from './types/wordle';
 import { useAgent } from './hooks/useAgent';
 import ReactMarkdown from 'react-markdown';
 import UserInfoModal from './components/UserInfoModal';
-import { useAuth } from './contexts/AuthContext';
-import { useWallet } from './contexts/WalletContext';
+import { useEmbeddedAuth } from './contexts/EmbeddedAuthContext';
+import { useEmbeddedWallet } from './contexts/EmbeddedWalletContext';
 import { useGame } from './contexts/GameContext';
 import { useNetwork } from './contexts/NetworkContext';
-import { getPaymentHint } from './services/payment_hint';
 import { requestTestnetFunds } from './services/request_funds';
 import NetworkToggle from './components/NetworkToggle';
 
@@ -25,8 +25,8 @@ import NetworkToggle from './components/NetworkToggle';
  */
 export default function Home() {
   // Context hooks
-  const { userInfo, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { walletInfo, isInitializing, initializeWallet, clearWallet } = useWallet();
+  const { user, isAuthenticated, isLoading: authLoading } = useEmbeddedAuth();
+  const { walletInfo, isInitializing, initializeWallet, clearWallet, refreshBalances } = useEmbeddedWallet();
   const { currentNetwork } = useNetwork();
   const { 
     guesses, 
@@ -47,6 +47,7 @@ export default function Home() {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [showUserInfoModal, setShowUserInfoModal] = useState(false);
+  const [showPrivateKeyModal, setShowPrivateKeyModal] = useState(false);
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [isGettingFunds, setIsGettingFunds] = useState(false);
 
@@ -65,16 +66,101 @@ export default function Home() {
 
     setIsGettingHint(true);
     try {
+      console.log('🚀 Using real X402 payments with embedded wallet');
       
-      // Call the payment hint function
-      const result = await getPaymentHint(walletInfo, currentNetwork);
-      console.log('Payment hint result:', result);
+      console.log('💳 Network:', currentNetwork?.name || 'Base Sepolia');
+      console.log('💰 Payment: $1.00 USDC per hint');
+      console.log('🔄 Generating X-PAYMENT header with embedded wallet...');
       
-      // Send detailed payment information to the chat
-      if (result && result.hint) {
-        let detailedMessage = `💰 **X402 Payment Successful!**\n\n`;
-        detailedMessage += `🎯 **Your Hint:** ${result.hint}\n\n`;
-        detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
+      // Use the working embedded wallet and X402 flow to generate header
+      const { getViemAccount } = await import('./services/embedded-viem-account');
+      const { withPaymentInterceptor } = await import('x402-axios');
+      const axios = (await import('axios')).default;
+      
+      const networkId = currentNetwork?.id || 'base-sepolia';
+      const baseURL = networkId === 'base' 
+        ? 'https://73scps14lf.execute-api.us-east-1.amazonaws.com/prod'
+        : 'https://ippt4twld3.execute-api.us-east-1.amazonaws.com/prod';
+      
+      console.log('🔑 Creating Viem account from embedded wallet...');
+      const viemAccount = await getViemAccount();
+      console.log('✅ Embedded wallet account ready:', viemAccount.address);
+      
+      let capturedXPaymentHeader = '';
+      
+      // Create interceptor to capture X-PAYMENT header
+      const api = withPaymentInterceptor(
+        axios.create({
+          baseURL,
+          timeout: 30000,
+        }),
+        viemAccount
+      );
+      
+      // Add request interceptor to capture X-PAYMENT header
+      api.interceptors.request.use((config) => {
+        if (config.headers['X-PAYMENT']) {
+          console.log('✅ X-PAYMENT header found!');
+          capturedXPaymentHeader = config.headers['X-PAYMENT'];
+          console.log('📏 Header length:', capturedXPaymentHeader.length);
+          console.log('🔍 Header preview:', capturedXPaymentHeader.substring(0, 50) + '...');
+          
+          // Cancel the request since we only need the header
+          const error = new Error('Header captured, canceling to avoid CORS');
+          error.name = 'HeaderCaptured';
+          throw error;
+        }
+        return config;
+      });
+      
+      try {
+        console.log('🔄 Triggering X402 flow to generate payment header...');
+        await api.get('/hint');
+      } catch (error: any) {
+        if (error.name === 'HeaderCaptured') {
+          console.log('✅ X-PAYMENT header captured successfully!');
+        } else if (capturedXPaymentHeader) {
+          console.log('✅ X-PAYMENT header generated successfully!');
+        } else {
+          console.error('❌ Failed to generate X-PAYMENT header:', error.message);
+          throw new Error(`X402 header generation failed: ${error.message}`);
+        }
+      }
+      
+      if (!capturedXPaymentHeader) {
+        throw new Error('X-PAYMENT header was not generated');
+      }
+      
+      // Now send the X-PAYMENT header to server-side proxy to avoid CORS
+      console.log('📡 Sending X-PAYMENT header to server-side proxy...');
+      const response = await fetch('/api/payment-hint', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          address: walletInfo.address,
+          network: currentNetwork,
+          xPaymentHeader: capturedXPaymentHeader
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment request failed');
+      }
+
+      const result = await response.json();
+      console.log('✅ Real X402 Payment result:', result);
+      
+              // Send detailed payment information to the chat
+        if (result && result.hint) {
+          const isRealPayment = result.paymentDetails?.paymentScheme === 'x402' && !result.fallback;
+          const paymentTitle = isRealPayment ? 'X402 Payment Successful!' : (result.fallback ? 'X402 Payment Failed - Fallback Used!' : 'Hint Generated Successfully!');
+          
+          let detailedMessage = `💰 **${paymentTitle}**\n\n`;
+          detailedMessage += `🎯 **Your Hint:** ${result.hint}\n\n`;
+          detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
         
         // Add comprehensive X402 payment details if available
         if (result.paymentDetails) {
@@ -85,7 +171,11 @@ export default function Home() {
           detailedMessage += `⏰ **Timestamp:** ${new Date(details.timestamp).toLocaleString()}\n\n`;
           detailedMessage += `👛 **Wallet:** \`${details.walletAddress.substring(0, 10)}...${details.walletAddress.substring(details.walletAddress.length - 8)}\`\n\n`;
           detailedMessage += `🌐 **Resource:** ${details.paymentResource}\n\n`;
-          detailedMessage += `✅ **Status:** ${details.paymentSuccessful ? '🟢 Success' : '🔴 Failed'}\n\n`;
+          const statusIcon = details.paymentSuccessful ? '🟢' : '🔴';
+          const statusText = isRealPayment 
+            ? (details.paymentSuccessful ? 'Payment Success' : 'Payment Failed')
+            : (details.paymentSuccessful ? 'Hint Generated' : 'Generation Failed');
+          detailedMessage += `✅ **Status:** ${statusIcon} ${statusText}\n\n`;
           detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
           
           // X402 Protocol Information
@@ -121,7 +211,7 @@ export default function Home() {
             detailedMessage += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
           }
           
-          // CDP Integration Status
+          // CDP Integration Status  
           detailedMessage += `🏗️ **CDP Integration Status**\n\n`;
           detailedMessage += `${details.cdpAccountCreated ? '✅' : '❌'} **CDP Account:** ${details.cdpAccountCreated ? 'Created successfully' : 'Failed to create'}\n\n`;
           detailedMessage += `${details.viemAdapterCreated ? '✅' : '❌'} **Viem Adapter:** ${details.viemAdapterCreated ? 'Initialized successfully' : 'Failed to initialize'}\n\n`;
@@ -188,8 +278,16 @@ export default function Home() {
           
           detailedMessage += `🎮 **Next Steps**\n\n`;
           detailedMessage += `🎯 **Use this hint to solve today's Wordle puzzle!**\n\n`;
-          detailedMessage += `📊 **Guesses Remaining:** ${6 - guesses.length} out of 6\n\n`;
-          detailedMessage += `💡 **Tip:** The hint tells you one letter that's in the target word!`;
+          const totalUsed = guesses.length + (result.gameState?.hintsUsed || 0);
+          detailedMessage += `📊 **Guesses Remaining:** ${Math.max(0, 6 - totalUsed)} out of 6\n\n`;
+          detailedMessage += `💡 **Hints Used:** ${result.gameState?.hintsUsed || 0}\n\n`;
+          if (isRealPayment) {
+            detailedMessage += `💡 **Tip:** The hint tells you one letter that's in the target word!`;
+          } else if (result.fallback) {
+            detailedMessage += `💡 **Tip:** This is a fallback hint - X402 payment failed but you still get help!`;
+          } else {
+            detailedMessage += `💡 **Tip:** The hint tells you one letter that's in the target word!`;
+          }
         }
         
         sendMessage(detailedMessage);
@@ -220,6 +318,17 @@ export default function Home() {
       // Send the result to the chat
       if (result && result.success) {
         sendMessage(`Funds requested successfully! ${result.message}`);
+        
+        // Refresh wallet balances after successful fund request
+        // Add a delay to allow transactions to be processed
+        setTimeout(async () => {
+          try {
+            await refreshBalances();
+            console.log('Wallet balances refreshed after fund request');
+          } catch (refreshError) {
+            console.error('Error refreshing balances:', refreshError);
+          }
+        }, 3000); // Wait 3 seconds for transactions to be processed
       } else {
         sendMessage('Failed to request funds from the server.');
       }
@@ -240,13 +349,25 @@ export default function Home() {
     }
   }, [messages]);
 
+  // Listen for private key export modal events
+  useEffect(() => {
+    const handleOpenPrivateKeyModal = () => {
+      setShowPrivateKeyModal(true);
+    };
+
+    window.addEventListener('openPrivateKeyModal', handleOpenPrivateKeyModal);
+    return () => {
+      window.removeEventListener('openPrivateKeyModal', handleOpenPrivateKeyModal);
+    };
+  }, []);
+
   // Handle wallet initialization when user becomes authenticated
   useEffect(() => {
     const initWallet = async () => {
-      if (isAuthenticated && userInfo && !walletInitialized.current && !isInitializing) {
+      if (isAuthenticated && user && !walletInitialized.current && !isInitializing) {
         walletInitialized.current = true;
         try {
-          await initializeWallet(userInfo.displayName);
+          await initializeWallet();
         } catch (error) {
           console.error('Error initializing wallet:', error);
           walletInitialized.current = false;
@@ -255,26 +376,27 @@ export default function Home() {
     };
 
     initWallet();
-  }, [isAuthenticated, userInfo, isInitializing, initializeWallet]);
+  }, [isAuthenticated, user, isInitializing, initializeWallet]);
 
   // Send welcome message once when wallet is ready
   useEffect(() => {
     const sendWelcomeMessage = () => {
-      if (walletInfo.isConnected && userInfo && !welcomeMessageSent.current) {
+      if (walletInfo.isConnected && user && !welcomeMessageSent.current) {
         welcomeMessageSent.current = true;
         
         const hasEnoughBalance = parseFloat(walletInfo.usdcBalance) >= MIN_BALANCE_TO_PLAY;
+        const displayName = user.userId.substring(0, 8);
         
         if (hasEnoughBalance) {
-          sendMessage(`Hello! I'm authenticated as ${userInfo.displayName}. My CDP wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Ready for some word puzzles!`);
+          sendMessage(`Hello! I'm authenticated as ${displayName}. My embedded wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Ready for some word puzzles!`);
         } else {
-          sendMessage(`I'm authenticated as ${userInfo.displayName}, but my CDP wallet only has ${walletInfo.usdcBalance} USDC. How do I get more USDC tokens?`);
+          sendMessage(`I'm authenticated as ${displayName}, but my embedded wallet only has ${walletInfo.usdcBalance} USDC. How do I get more USDC tokens?`);
         }
       }
     };
 
     sendWelcomeMessage();
-  }, [walletInfo.isConnected, userInfo, walletInfo.address, walletInfo.usdcBalance, sendMessage]);
+  }, [walletInfo.isConnected, user, walletInfo.address, walletInfo.usdcBalance, sendMessage]);
 
   // Clear everything when user logs out
   useEffect(() => {
@@ -443,7 +565,7 @@ export default function Home() {
       {/* Game board - always visible on top on mobile, left on desktop */}
       <div className="game-section md:w-1/2 flex flex-col bg-white dark:bg-gray-800 relative">
         {/* Game Status Indicator */}
-        {walletInfo.isConnected && userInfo ? (
+        {walletInfo.isConnected && user ? (
           <div className="w-full px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="status-indicator status-ready">
               <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
@@ -509,140 +631,199 @@ export default function Home() {
       
       {/* Chat interface */}
       <div className="chat-section md:w-1/2 bg-gray-50 dark:bg-gray-900 border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 flex flex-col">
-        <div className="chat-header flex items-center justify-between px-4 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 bg-white dark:bg-gray-800">
-          <div className="flex items-center space-x-3">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
-            <NetworkToggle />
-            <button
-              onClick={handleGetPaymentHint}
-              disabled={isGettingHint || !walletInfo.isConnected}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                isGettingHint || !walletInfo.isConnected
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-              }`}
-              title="Get payment hint from server"
-            >
-              {isGettingHint ? 'Getting...' : 'Get Hint'}
-            </button>
-            <button
-              onClick={handleGetFunds}
-              disabled={isGettingFunds || !walletInfo.isConnected}
-              className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                isGettingFunds || !walletInfo.isConnected
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                  : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
-              }`}
-              title="Request testnet funds using CDP AgentKit"
-            >
-              {isGettingFunds ? 'Requesting...' : 'Get Funds'}
-            </button>
-          </div>
-          {/* Circle Faucet Link */}
-          <div className="mt-2 px-3">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Having issues getting funds? Try the{' '}
-              <a 
-                href="https://faucet.circle.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline transition-colors"
-              >
-                Circle Faucet
-              </a>
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            {userInfo && walletInfo.isConnected && (
-              <div 
-                className="flex items-center px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors text-sm font-medium"
-                title="Click to view profile details"
-                onClick={() => setShowUserInfoModal(true)}
-              >
-                <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
-                <span>{userInfo.displayName}</span>
+        {/* Chat Header - Simplified */}
+        <div className="chat-header bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Chat with AI</h2>
+              <div className="flex items-center space-x-2">
+                <NetworkToggle />
+                {user && walletInfo.isConnected && (
+                  <div 
+                    className="flex items-center px-3 py-1.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 cursor-pointer hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors text-sm font-medium"
+                    title="Click to view profile details"
+                    onClick={() => setShowUserInfoModal(true)}
+                  >
+                    <div className="w-2 h-2 rounded-full mr-2 bg-green-500"></div>
+                    <span>{user.userId.substring(0, 8)}...</span>
+                  </div>
+                )}
+                <div className="auth-button">
+                  <EmbeddedAuth />
+                </div>
               </div>
-            )}
-            <div className="auth-button">
-              <PassageAuth />
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleGetPaymentHint}
+                disabled={isGettingHint || !walletInfo.isConnected}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  isGettingHint || !walletInfo.isConnected
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                }`}
+                title="Get payment hint from server"
+              >
+                {isGettingHint ? 'Getting...' : 'Get Hint'}
+              </button>
+              <button
+                onClick={handleGetFunds}
+                disabled={isGettingFunds || !walletInfo.isConnected}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  isGettingFunds || !walletInfo.isConnected
+                    ? 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50'
+                }`}
+                title="Request testnet funds using CDP AgentKit"
+              >
+                {isGettingFunds ? 'Requesting...' : 'Get Funds'}
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Need funds?{' '}
+                <a 
+                  href="https://faucet.circle.com/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline transition-colors"
+                >
+                  Circle Faucet
+                </a>
+              </p>
             </div>
           </div>
         </div>
         
-        {/* Chat messages area */}
-        <div className="flex-grow overflow-y-auto p-4 space-y-3" ref={chatContainerRef}>
+        {/* Chat messages area - Improved readability */}
+        <div className="flex-grow overflow-y-auto px-6 py-4 space-y-4 chat-messages-container" ref={chatContainerRef}>
           {messages.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center py-12">
+              <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm border border-gray-200 dark:border-gray-700 max-w-md mx-auto">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full mx-auto mb-6 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
-                <p className="text-gray-600 dark:text-gray-400 mb-2">Welcome to CDP Wordle!</p>
-                <p className="text-gray-500 dark:text-gray-500 text-sm">Sign in or register to start playing Wordle with crypto rewards.</p>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Welcome to CDP Wordle!</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed">Sign in or register to start playing Wordle with crypto rewards.</p>
               </div>
             </div>
           ) : (
             messages.map((msg, index) => (
               <div
                 key={index}
-                className={`p-4 rounded-xl shadow-sm max-w-[85%] ${
-                  msg.sender === "user"
-                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white ml-auto"
-                    : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mr-auto text-gray-900 dark:text-gray-100"
-                }`}
+                className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
               >
-                <ReactMarkdown
-                  components={{
-                    a: props => (
-                      <a
-                        {...props}
-                        className="text-blue-600 dark:text-blue-400 underline hover:text-blue-800 dark:hover:text-blue-300 transition-colors"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    ),
-                  }}
+                <div
+                  className={`max-w-[80%] px-5 py-4 rounded-2xl shadow-sm ${
+                    msg.sender === "user"
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white"
+                      : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100"
+                  }`}
                 >
-                  {msg.text.split('---EVALUATION---')[0].trim()}
-                </ReactMarkdown>
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown
+                      components={{
+                        a: props => (
+                          <a
+                            {...props}
+                            className={`underline hover:no-underline transition-colors ${
+                              msg.sender === "user" 
+                                ? "text-blue-200 hover:text-white" 
+                                : "text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
+                            }`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        ),
+                        p: props => (
+                          <p 
+                            {...props} 
+                            className={`leading-relaxed text-base mb-3 last:mb-0 ${
+                              msg.sender === "user" ? "text-white" : "text-gray-900 dark:text-gray-100"
+                            }`}
+                          />
+                        ),
+                        ul: props => (
+                          <ul 
+                            {...props} 
+                            className={`list-disc list-inside space-y-1 mb-3 ${
+                              msg.sender === "user" ? "text-white" : "text-gray-900 dark:text-gray-100"
+                            }`}
+                          />
+                        ),
+                        li: props => (
+                          <li 
+                            {...props} 
+                            className={`text-base leading-relaxed ${
+                              msg.sender === "user" ? "text-white" : "text-gray-900 dark:text-gray-100"
+                            }`}
+                          />
+                        ),
+                        strong: props => (
+                          <strong 
+                            {...props} 
+                            className={`font-semibold ${
+                              msg.sender === "user" ? "text-white" : "text-gray-900 dark:text-gray-100"
+                            }`}
+                          />
+                        ),
+                        code: props => (
+                          <code 
+                            {...props} 
+                            className={`px-2 py-1 rounded text-sm font-mono ${
+                              msg.sender === "user" 
+                                ? "bg-blue-800/30 text-blue-100" 
+                                : "bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                            }`}
+                          />
+                        ),
+                      }}
+                    >
+                      {msg.text.split('---EVALUATION---')[0].trim()}
+                    </ReactMarkdown>
+                  </div>
+                </div>
               </div>
             ))
           )}
 
           {/* Thinking Indicator */}
           {isThinking && (
-            <div className="flex items-center space-x-2 text-gray-500 dark:text-gray-400 ml-4">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+            <div className="flex justify-start">
+              <div className="flex items-center space-x-3 px-5 py-4 bg-gray-100 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700">
+                <div className="flex space-x-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                </div>
+                <span className="text-base text-gray-600 dark:text-gray-400 italic">AI is thinking...</span>
               </div>
-              <span className="text-sm italic">AI is thinking...</span>
             </div>
           )}
         </div>
 
-        {/* Input area */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-          <div className="flex items-center space-x-3">
-            <input
-              ref={inputRef}
-              type="text"
-              className="flex-grow p-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-              placeholder={isGameOver ? "Game over. Start a new game!" : "Type a message or 5-letter guess..."}
-              value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isThinking || !walletInfo.isConnected}
-            />
+        {/* Input area - Improved */}
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <div className="flex items-end space-x-3">
+            <div className="flex-grow">
+              <input
+                ref={inputRef}
+                type="text"
+                className="w-full px-4 py-3 text-base rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 shadow-sm"
+                placeholder={isGameOver ? "Game over. Start a new game!" : "Type a message or 5-letter guess..."}
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isThinking || !walletInfo.isConnected}
+              />
+            </div>
             <button
               onClick={() => handleSendMessage(inputValue)}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all duration-200 ${
+              className={`px-6 py-3 text-base rounded-xl font-semibold transition-all duration-200 shadow-sm hover:shadow-md ${
                 isThinking || !walletInfo.isConnected
                   ? "bg-gray-300 dark:bg-gray-600 cursor-not-allowed text-gray-500 dark:text-gray-400"
-                  : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg"
+                  : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white"
               }`}
               disabled={isThinking || !walletInfo.isConnected}
             >
@@ -651,14 +832,15 @@ export default function Home() {
           </div>
           {/* Balance warning */}
           {walletInfo.isConnected && parseFloat(walletInfo.usdcBalance) < MIN_BALANCE_TO_PLAY && (
-            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <svg className="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-xl">
+              <div className="flex items-start space-x-3">
+                <svg className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.268 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
-                <span className="text-sm text-yellow-800 dark:text-yellow-300">
-                  Insufficient balance. You can ask for help getting USDC.
-                </span>
+                <div>
+                  <p className="text-base font-medium text-yellow-800 dark:text-yellow-300">Insufficient Balance</p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-400 mt-1">You can ask for help getting USDC or use the "Get Funds" button above.</p>
+                </div>
               </div>
             </div>
           )}
@@ -674,6 +856,11 @@ export default function Home() {
       <UserInfoModal 
         isOpen={showUserInfoModal} 
         onClose={() => setShowUserInfoModal(false)}
+      />
+
+      <PrivateKeyExportModal 
+        isOpen={showPrivateKeyModal} 
+        onClose={() => setShowPrivateKeyModal(false)}
       />
     </div>
   );

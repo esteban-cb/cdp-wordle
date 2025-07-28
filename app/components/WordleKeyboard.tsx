@@ -31,12 +31,12 @@ const WordleKeyboard: React.FC<WordleKeyboardProps> = ({ keyStatus, onKeyClick }
     }
   };
 
-  // Size keys appropriately - smaller for better fit
+  // Size keys appropriately - better spacing
   const getKeySize = (key: string) => {
     if (key === 'enter' || key === 'backspace') {
-      return 'px-2 py-2.5 text-xs min-w-[50px]';
+      return 'px-3 py-3 text-xs min-w-[60px]';
     }
-    return 'w-8 h-8 text-sm';
+    return 'w-9 h-9 text-sm';
   };
 
   // Display text for special keys
@@ -54,9 +54,9 @@ const WordleKeyboard: React.FC<WordleKeyboardProps> = ({ keyStatus, onKeyClick }
   };
 
   return (
-    <div className="keyboard-container mx-auto w-full max-w-sm">
+    <div className="keyboard-container mx-auto w-full max-w-lg">
       {keyboardRows.map((row, rowIndex) => (
-        <div key={rowIndex} className={`flex justify-center mb-1.5 gap-1 ${rowIndex === 1 ? 'px-4' : ''}`}>
+        <div key={rowIndex} className={`flex justify-center mb-2 gap-1.5 ${rowIndex === 1 ? 'px-4' : ''}`}>
           {row.map((key) => (
             <button
               key={key}

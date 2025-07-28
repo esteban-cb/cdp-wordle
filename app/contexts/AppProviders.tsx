@@ -1,8 +1,8 @@
 'use client';
 
 import React, { ReactNode } from 'react';
-import { AuthProvider } from './AuthContext';
-import { WalletProvider } from './WalletContext';
+import { EmbeddedAuthProvider } from './EmbeddedAuthContext';
+import { EmbeddedWalletProvider } from './EmbeddedWalletContext';
 import { GameProvider } from './GameContext';
 import { NetworkProvider } from './NetworkContext';
 
@@ -17,9 +17,9 @@ interface AppProvidersProps {
  * at https://react.dev/reference/react/createContext#consuming-multiple-contexts
  * 
  * The provider hierarchy is intentional:
- * 1. AuthProvider - Manages user authentication (outermost)
+ * 1. EmbeddedAuthProvider - Manages user authentication with embedded wallet (outermost)
  * 2. NetworkProvider - Manages network switching (depends on auth)
- * 3. WalletProvider - Manages CDP wallet operations (depends on auth and network)
+ * 3. EmbeddedWalletProvider - Manages embedded wallet operations (depends on auth and network)
  * 4. GameProvider - Manages game state (innermost, may depend on wallet)
  * 
  * @param children - React components that will have access to all contexts
@@ -43,15 +43,15 @@ interface AppProvidersProps {
  */
 export const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
   return (
-    <AuthProvider>
+    <EmbeddedAuthProvider>
       <NetworkProvider>
-        <WalletProvider>
+        <EmbeddedWalletProvider>
           <GameProvider>
             {children}
           </GameProvider>
-        </WalletProvider>
+        </EmbeddedWalletProvider>
       </NetworkProvider>
-    </AuthProvider>
+    </EmbeddedAuthProvider>
   );
 };
 

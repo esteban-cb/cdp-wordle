@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { AgentRequest, AgentResponse } from "../types/api";
 import { NetworkConfig } from "../types/wordle";
 
@@ -90,10 +90,10 @@ export function useAgent(network?: NetworkConfig) {
    * Clears all messages from the conversation history.
    * Useful for resetting the chat session when user logs out.
    */
-  const clearMessages = () => {
+  const clearMessages = useCallback(() => {
     setMessages([]);
     setIsThinking(false);
-  };
+  }, []);
 
   return { messages, sendMessage, isThinking, clearMessages };
 }
