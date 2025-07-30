@@ -16,7 +16,7 @@ import { NetworkConfig } from "../types/wordle";
 async function messageAgent(
   userMessage: string,
   network?: NetworkConfig
-): Promise<string | null> {
+): Promise<AgentResponse | null> {
   try {
     const response = await fetch("/api/agent", {
       method: "POST",
@@ -28,7 +28,7 @@ async function messageAgent(
     });
 
     const data = (await response.json()) as AgentResponse;
-    return data.response ?? data.error ?? null;
+    return data;
   } catch (error) {
     console.error("Error communicating with agent:", error);
     return null;
@@ -62,6 +62,10 @@ export function useAgent(network?: NetworkConfig) {
     { text: string; sender: "user" | "agent" }[]
   >([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [paymentRequired, setPaymentRequired] = useState<{
+    action: string;
+    cost: string;
+  } | null>(null);
 
   /**
    * Sends a user message, updates local state, and retrieves the agent's response.
@@ -74,13 +78,23 @@ export function useAgent(network?: NetworkConfig) {
     setMessages((prev) => [...prev, { text: input, sender: "user" }]);
     setIsThinking(true);
 
-    const responseMessage = await messageAgent(input, network);
+    const agentResponse = await messageAgent(input, network);
 
-    if (responseMessage) {
+    if (agentResponse) {
+      const responseText = agentResponse.response ?? agentResponse.error ?? "No response";
+      
       setMessages((prev) => [
         ...prev,
-        { text: responseMessage, sender: "agent" },
+        { text: responseText, sender: "agent" },
       ]);
+
+      // Handle payment requirements
+      if (agentResponse.requiresPayment && agentResponse.paymentAction && agentResponse.cost) {
+        setPaymentRequired({
+          action: agentResponse.paymentAction,
+          cost: agentResponse.cost,
+        });
+      }
     }
 
     setIsThinking(false);
@@ -93,7 +107,15 @@ export function useAgent(network?: NetworkConfig) {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setIsThinking(false);
+    setPaymentRequired(null);
   }, []);
 
-  return { messages, sendMessage, isThinking, clearMessages };
+  /**
+   * Clears the payment requirement state.
+   */
+  const clearPaymentRequired = useCallback(() => {
+    setPaymentRequired(null);
+  }, []);
+
+  return { messages, sendMessage, isThinking, clearMessages, paymentRequired, clearPaymentRequired };
 }

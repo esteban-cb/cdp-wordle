@@ -61,52 +61,90 @@ export async function prepareAgentkitAndWalletProvider(
   walletProvider: WalletProvider;
 }> {
   try {
-    let walletDataStr: string | null = null;
-
-    // Read existing wallet data if available
-    if (fs.existsSync(WALLET_DATA_FILE)) {
-      try {
-        walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
-      } catch (error) {
-        console.error("Error reading wallet data:", error);
-        // Continue without wallet data
+    // Try to use the existing embedded wallet first
+    try {
+      const { getCurrentUser } = await import("@coinbase/cdp-core");
+      const user = await getCurrentUser();
+      
+      if (user && user.evmAccounts && user.evmAccounts.length > 0) {
+        console.log("🔗 Using existing embedded wallet for AgentKit");
+        
+        // Use the embedded wallet's address to configure AgentKit
+        const walletAddress = user.evmAccounts[0];
+        console.log("📍 Embedded wallet address:", walletAddress);
+        
+        // Initialize WalletProvider with embedded wallet data
+        const walletProvider = await CdpWalletProvider.configureWithWallet({
+          apiKeyName: process.env.CDP_API_KEY_NAME,
+          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+          networkId: networkId,
+          // Don't pass wallet data - let it use the authenticated session
+        });
+        
+        return await initializeAgentKitWithProvider(walletProvider);
       }
+    } catch (embeddedError) {
+      console.log("⚠️ Could not access embedded wallet, falling back to AgentKit wallet:", embeddedError);
     }
 
-    // Initialize WalletProvider: https://docs.cdp.coinbase.com/agentkit/docs/wallet-management
-    const walletProvider = await CdpWalletProvider.configureWithWallet({
-      apiKeyName: process.env.CDP_API_KEY_NAME,
-      apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
-      networkId: networkId,
-      cdpWalletData: walletDataStr || undefined,
-    });
-
-    // Initialize AgentKit: https://docs.cdp.coinbase.com/agentkit/docs/agent-actions
-    const agentkit = await AgentKit.from({
-      walletProvider,
-      actionProviders: [
-        wethActionProvider(),
-        pythActionProvider(),
-        walletActionProvider(),
-        erc20ActionProvider(),
-        cdpApiActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
-        }),
-        cdpWalletActionProvider({
-          apiKeyName: process.env.CDP_API_KEY_NAME,
-          apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
-        }),
-      ],
-    });
-
-    // Save wallet data
-    const exportedWallet = await walletProvider.exportWallet();
-    fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
-
-    return { agentkit, walletProvider };
+    // Fallback: Use AgentKit's own wallet system
+    return await initializeAgentKitFallback(networkId);
   } catch (error) {
     console.error("Error initializing agent:", error);
     throw new Error("Failed to initialize agent");
   }
+}
+
+// Helper function to initialize AgentKit with a given wallet provider
+async function initializeAgentKitWithProvider(walletProvider: any) {
+  const agentkit = await AgentKit.from({
+    walletProvider,
+    actionProviders: [
+      wethActionProvider(),
+      pythActionProvider(),
+      walletActionProvider(),
+      erc20ActionProvider(),
+      cdpApiActionProvider({
+        apiKeyName: process.env.CDP_API_KEY_NAME,
+        apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+      }),
+      cdpWalletActionProvider({
+        apiKeyName: process.env.CDP_API_KEY_NAME,
+        apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+      }),
+    ],
+  });
+
+  return { agentkit, walletProvider };
+}
+
+// Fallback function for AgentKit's own wallet system
+async function initializeAgentKitFallback(networkId: string) {
+  let walletDataStr: string | null = null;
+
+  // Read existing wallet data if available
+  if (fs.existsSync(WALLET_DATA_FILE)) {
+    try {
+      walletDataStr = fs.readFileSync(WALLET_DATA_FILE, "utf8");
+    } catch (error) {
+      console.error("Error reading wallet data:", error);
+      // Continue without wallet data
+    }
+  }
+
+  // Initialize WalletProvider: https://docs.cdp.coinbase.com/agentkit/docs/wallet-management
+  const walletProvider = await CdpWalletProvider.configureWithWallet({
+    apiKeyName: process.env.CDP_API_KEY_NAME,
+    apiKeyPrivateKey: process.env.CDP_API_KEY_PRIVATE_KEY,
+    networkId: networkId,
+    cdpWalletData: walletDataStr || undefined,
+  });
+
+  const result = await initializeAgentKitWithProvider(walletProvider);
+
+  // Save wallet data
+  const exportedWallet = await walletProvider.exportWallet();
+  fs.writeFileSync(WALLET_DATA_FILE, JSON.stringify(exportedWallet));
+
+  return result;
 }

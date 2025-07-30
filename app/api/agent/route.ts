@@ -1,235 +1,134 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AgentRequest, AgentResponse } from "../../types/api";
-import { WORD_LENGTH } from "../../types/wordle";
 import {
-  getOrCreateGameState,
-  setGameState,
-  deleteGameState,
   addToConversationHistory,
-  getRandomWord,
 } from "../../services/gameState";
-
-// Check if a word is in our word list
-// function isValidWord(word: string): boolean {
-//   return WORD_LIST.includes(word.toLowerCase());
-// }
-
-// Evaluate a guess against the target word
-function evaluateGuess(
-  guess: string,
-  targetWord: string
-): { letterStatuses: string[]; evaluation: string } {
-  const letterStatuses: ("correct" | "present" | "absent")[] =
-    Array(WORD_LENGTH).fill("absent");
-  const evaluation: string[] = [];
-
-  // First, mark all correct letters
-  for (let i = 0; i < WORD_LENGTH; i++) {
-    if (guess[i] === targetWord[i]) {
-      letterStatuses[i] = "correct";
-    }
-  }
-
-  // Then, for each non-correct letter, check if it's present elsewhere
-  for (let i = 0; i < WORD_LENGTH; i++) {
-    if (letterStatuses[i] !== "correct") {
-      // Check if this letter appears elsewhere in the target word
-      // and hasn't been marked as 'present' or 'correct' already
-      const targetLetters = targetWord.split("");
-      const letterToCheck = guess[i];
-
-      // Count how many times this letter appears in the target word
-      const letterCount = targetLetters.filter(
-        (letter) => letter === letterToCheck
-      ).length;
-
-      // Count how many times this letter has already been marked as 'correct' or 'present'
-      const markedCount = guess
-        .split("")
-        .filter(
-          (letter, idx) =>
-            letter === letterToCheck &&
-            (letterStatuses[idx] === "correct" ||
-              letterStatuses[idx] === "present")
-        ).length;
-
-      if (targetWord.includes(letterToCheck) && markedCount < letterCount) {
-        letterStatuses[i] = "present";
-      }
-    }
-
-    // Add evaluation text for each letter
-    const letterChar = guess[i].toUpperCase();
-    evaluation.push(
-      `Letter ${letterChar} at position ${i + 1} is ${letterStatuses[
-        i
-      ].toUpperCase()}`
-    );
-  }
-
-  return { letterStatuses, evaluation: evaluation.join("\n") };
-}
+import { wordleTools } from "./wordle-tools";
+import { initializeAgentKit } from "./agentkit-wrapper";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  console.log("🤖 Agent route called");
+  
   try {
     const { userMessage, network }: AgentRequest = await request.json();
-
-    // Get a unique identifier for the user session (in a real app, use a proper user ID)
+    console.log("📝 User message:", userMessage);
+    
     const userId = "user123";
-
+    const message = userMessage.trim().toLowerCase();
+    
     // Add user message to history
     addToConversationHistory(userId, { text: userMessage, sender: "user" });
-
-    // Get or create game state
-    const gameState = getOrCreateGameState(userId);
-    console.log("Agent: Current target word is:", gameState.targetWord);
-    console.log("Agent: Current guesses:", gameState.guesses);
-    const message = userMessage.trim().toLowerCase();
-
-    // Handle wallet-related questions generically (the frontend manages the actual wallet)
-    if (message.includes("wallet address") || message.includes("my address")) {
-      const response =
-        "You can view your wallet address and details by clicking on your profile in the top right corner of the chat.";
-      addToConversationHistory(userId, { text: response, sender: "agent" });
-      return NextResponse.json({ response } as AgentResponse);
+    
+    let response = "";
+    
+    // Initialize AgentKit tools for wallet operations
+    let agentKitTools: any = {};
+    try {
+      const { tools } = await initializeAgentKit(network || "base-sepolia");
+      agentKitTools = tools;
+      console.log("✅ AgentKit initialized with", Object.keys(agentKitTools).length, "tools");
+    } catch (error) {
+      console.log("⚠️ AgentKit initialization failed:", error instanceof Error ? error.message : String(error));
     }
-
-    if (message.includes("balance") || message.includes("my balance")) {
-      const response =
-        "Your current balance is shown in your profile. Click on your username in the top right to see your ETH and USDC balances.";
-      addToConversationHistory(userId, { text: response, sender: "agent" });
-      return NextResponse.json({ response } as AgentResponse);
-    }
-
-    // Expanded game commands to include variations like "start wordle"
-    if (
-      message === "new game" ||
-      message === "let's play wordle!" ||
-      message === "play again" ||
-      message === "start wordle" ||
-      message === "start game" ||
-      message.includes("start a new game") ||
-      message.includes("play wordle") ||
-      message.includes("begin wordle")
-    ) {
-      // Start a new game
-      const newTargetWord = getRandomWord();
-      setGameState(userId, {
-        targetWord: newTargetWord,
-        guesses: [],
-      });
-
-      console.log("New target word:", newTargetWord); // For debugging
-
-      const response =
-        "I've selected a fresh 5-letter word for you - time for a new challenge!\n\nMake your first guess!";
-      addToConversationHistory(userId, { text: response, sender: "agent" });
-      return NextResponse.json({ response } as AgentResponse);
-    }
-
-    // Check if the message is a potential word guess
-    if (message.length === WORD_LENGTH && /^[a-z]+$/.test(message)) {
-      // Add guess to game state even if it's not in the word list
-      // This allows users to try any 5-letter word
-      gameState.guesses.push(message);
-
-      // Evaluate the guess
-      const { evaluation } = evaluateGuess(message, gameState.targetWord);
-
-      // Check if the game is over
-      const isWin = message === gameState.targetWord;
-      const isLoss = gameState.guesses.length >= 6 && !isWin;
-
-      // Create user-friendly message without verbose evaluation
-      let response = "";
-
-      if (isWin) {
-        response = `Congratulations! You guessed the word "${gameState.targetWord.toUpperCase()}" correctly in ${
-          gameState.guesses.length
-        } ${gameState.guesses.length === 1 ? "try" : "tries"}.`;
-        // Reset game
-        deleteGameState(userId);
-      } else if (isLoss) {
-        response = `Game over! You've used all your guesses. The word was "${gameState.targetWord.toUpperCase()}".`;
-        // Reset game
-        deleteGameState(userId);
+    
+    // Handle Wordle game logic using tools directly (this works reliably)
+    if (message.includes("start") && (message.includes("wordle") || message.includes("game"))) {
+      const result = await wordleTools.startNewGame.execute({ userId });
+      response = result.message || "New Wordle game started! Make your first 5-letter word guess.";
+    } 
+    else if (message.length === 5 && /^[a-z]+$/i.test(message)) {
+      const result = await wordleTools.makeGuess.execute({ userId, guess: message });
+      if (result.success) {
+        response = result.message || "";
+        if (result.evaluation) {
+          response += `\n\n---EVALUATION---\n${result.evaluation}`;
+        }
       } else {
-        // Game continues - just show remaining guesses
-        response = `You have ${6 - gameState.guesses.length} ${
-          6 - gameState.guesses.length === 1 ? "guess" : "guesses"
-        } remaining.`;
+        response = result.message || "Invalid guess. Please try a different word.";
       }
-
-      // Add evaluation data at the end for frontend parsing, separated by a marker
-      response += `\n\n---EVALUATION---\n${evaluation}`;
-
-      addToConversationHistory(userId, { text: response, sender: "agent" });
-      return NextResponse.json({ response } as AgentResponse);
+    } 
+    else if (message.includes("hint") || message.includes("clue")) {
+      const result = await wordleTools.getHint.execute({ userId });
+      if (result.success && result.requiresPayment) {
+        response = "To get a hint, you need to pay 1 USDC. Please use the 'Get Hint' button to proceed with payment, or I can help you with other game actions for free.";
+        addToConversationHistory(userId, { text: response, sender: "agent" });
+        return NextResponse.json({ 
+          response,
+          requiresPayment: true,
+          paymentAction: "hint",
+          cost: "1.00 USDC"
+        } as AgentResponse);
+      } else if (result.success) {
+        response = result.message || "Here's a hint for you!";
+      } else {
+        response = result.message || "You need to start a game first to get hints.";
+      }
+    } 
+    else if (message.includes("status") || message.includes("current")) {
+      const result = await wordleTools.getGameStatus.execute({ userId });
+      if (result.success && result.gameState) {
+        const { guesses, remainingGuesses, hintsUsed } = result.gameState;
+        response = `Current game status:\n- Guesses made: ${guesses.length}\n- Remaining guesses: ${remainingGuesses}\n- Hints used: ${hintsUsed}`;
+      } else {
+        response = "No active game. Say 'start wordle' to begin!";
+      }
     }
+    // Handle wallet/balance queries - provide helpful guidance  
+    else if (message.includes("balance") || message.includes("usdc") || message.includes("how much")) {
+      response = `Your current USDC balance is displayed in the wallet info at the top right of the screen.
 
-    // Fall back to regular non-guess message handling
-    const response = handleNonGuessMessage(message, gameState);
+**To check your balance:**
+1. Look at the wallet info in the top right corner
+2. Click on your username to see detailed balance information  
+3. Your balance shows the exact USDC amount with precision
+
+Your embedded wallet manages your actual funds. For testnet funds, you can use the "Get Funds" button or ask me to "get funds" to request test USDC and ETH.`;
+    }
+    else if (message.includes("wallet") || message.includes("address")) {
+      response = `Your wallet address and details are shown in the top right corner.
+
+**To view your wallet info:**
+1. Click on your username in the top right corner
+2. This shows your full wallet address and current balances
+3. You can copy your address from the wallet details
+
+Your embedded wallet is automatically connected and ready to use. For blockchain operations like requesting funds, I can help with AgentKit commands.`;
+    }
+    // Handle fund requests using AgentKit
+    else if (message.includes("get funds") || message.includes("request funds") || message.includes("need funds")) {
+      if (agentKitTools && agentKitTools["CdpApiActionProvider_request_faucet_funds"]) {
+        try {
+          console.log("🔍 Requesting faucet funds using AgentKit...");
+          const fundsResult = await agentKitTools["CdpApiActionProvider_request_faucet_funds"].execute({});
+          response = `Funds request initiated! ${fundsResult.message || 'Check your wallet for the funds.'}\n\nYou can also use the "Get Funds" button in the interface for additional funding options.`;
+        } catch (error) {
+          console.log("Funds request failed:", error);
+          response = "I can help you get testnet funds! Use the 'Get Funds' button in the interface, or visit the Base Sepolia faucet directly. You'll need both ETH (for gas) and USDC (for hints) on the testnet.";
+        }
+      } else {
+        response = "To get testnet funds, use the 'Get Funds' button in the interface or visit the Base Sepolia faucet. You'll need both ETH for gas fees and USDC for hints.";
+      }
+    }
+    else if (message.includes("help")) {
+      response = "Welcome to CDP Wordle! Here's how to play:\n- Say 'start wordle' to begin a new game\n- Guess any 5-letter word\n- Get hints with 'give me a hint' (costs 1 USDC)\n- Ask for 'status' to see your current game\n- Ask about your 'balance' or 'wallet' for account info\n\nYou have 6 guesses to find the word!";
+    } 
+    else {
+      response = "I can help you with:\n• Wordle game: 'start wordle', make 5-letter guesses, 'status'\n• Wallet info: 'balance', 'wallet address', 'network'\n• Payments: 'get hint' (1 USDC), 'get funds' (testnet)\n• General: 'help' for game instructions\n\nWhat would you like to do?";
+    }
+    
+    // Add agent response to history
     addToConversationHistory(userId, { text: response, sender: "agent" });
+    
     return NextResponse.json({ response } as AgentResponse);
+    
   } catch (error) {
-    console.error("Error in agent route:", error);
+    console.error("❌ Error in agent route:", error);
+    
+    const fallbackResponse = "I'm having trouble processing that request right now. For Wordle, try 'start wordle' to begin a game. For other help, please try again in a moment.";
+    
     return NextResponse.json({
-      error: "Sorry, there was an error processing your request.",
+      response: fallbackResponse
     } as AgentResponse);
   }
 }
 
-// Handle messages that aren't word guesses or commands
-function handleNonGuessMessage(
-  message: string,
-  gameState: { targetWord: string; guesses: string[] }
-): string {
-  // Check if asking for help
-  if (message.includes("help") || message.includes("how to play")) {
-    return "To play Wordle, first say 'start wordle' to begin a new game. Then guess any 5-letter word. I'll tell you which letters are in the correct position (CORRECT), which letters are in the word but in the wrong position (PRESENT), and which letters are not in the word (ABSENT). You have 6 guesses to find the word!";
-  }
-
-  // Check if this is a payment hint message (not a user request for hint)
-  if (message.includes("payment successful! here's your hint:")) {
-    // This is a payment hint message, encourage them to use it
-    return "Here's a hint! Can you guess the word now?";
-  }
-
-  // Check if asking for a hint
-  if (message.includes("hint") || message.includes("clue")) {
-    // If they haven't made any guesses yet, give a general hint
-    if (gameState.guesses.length === 0) {
-      return "To start playing, say 'start wordle' and then make your first guess with any 5-letter word!";
-    }
-
-    // If they're actively playing, encourage them to continue
-    return "Can you guess the word now?";
-  }
-
-  // Check if asking about getting test USDC (be more specific to avoid triggering on status messages)
-  if (
-    message.toLowerCase().includes("how do i get") ||
-    message.toLowerCase().includes("need more") ||
-    message.toLowerCase().includes("get more") ||
-    message.toLowerCase().includes("faucet") ||
-    message.toLowerCase().includes("get funds") ||
-    message.toLowerCase().includes("more funds") ||
-    (message.toLowerCase().includes("usdc") &&
-      (message.toLowerCase().includes("need") ||
-        message.toLowerCase().includes("how")))
-  ) {
-    return (
-      "To get test USDC for Base Sepolia, you can use the 'Get Funds' button in the interface. You'll also need a small amount of ETH for gas fees, which you can get from a faucet like:\n\n" +
-      "Base Sepolia Faucet (official): https://www.coinbase.com/faucets/base-sepolia-faucet\n\n" +
-      "Connect your wallet on those sites and request test tokens."
-    );
-  }
-
-  // If the message contains "wordle" but isn't a specific command, suggest starting a game
-  if (message.toLowerCase().includes("wordle")) {
-    return "To start a new Wordle game, just say 'start wordle'. Then you can guess 5-letter words to play!";
-  }
-
-  // Default response
-  return "Welcome to CDP Wordle! Say 'start wordle' to begin a new game, or ask for 'help' if you need assistance.";
-}
