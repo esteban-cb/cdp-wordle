@@ -419,7 +419,7 @@ export default function Home() {
     }
   }, [isAuthenticated, authLoading, clearWallet, clearMessages, clearGameState]);
 
-  // Process agent responses that might contain Wordle evaluations
+  // Process agent responses that might contain Wordle evaluations or game state changes
   useEffect(() => {
     if (messages.length < 2) return;
     
@@ -438,13 +438,24 @@ export default function Home() {
     // Add to processed messages
     addProcessedMessage(messageId);
     
+    const userText = lastUserMessage.text.trim().toLowerCase();
+    const agentText = lastAgentMessage.text;
+    
+    // Check if user started a new game via chat
+    if ((userText.includes('start') && (userText.includes('wordle') || userText.includes('game'))) && 
+        (agentText.includes('New Wordle game started') || agentText.includes('Make your first 5-letter word guess'))) {
+      console.log('🎮 Detected new game started via chat - syncing visual board');
+      startNewGame(); // Sync the frontend game state with server-side game state
+      return; // Don't process as a guess
+    }
+    
     // Check if user message is a potential wordle guess
-    const guess = lastUserMessage.text.trim().toLowerCase();
+    const guess = userText;
     const isValidGuess = guess.length === WORD_LENGTH && /^[a-z]+$/.test(guess);
     
     if (isValidGuess) {
       // Look for patterns in the agent response indicating a wordle evaluation
-      const responseText = lastAgentMessage.text;
+      const responseText = agentText;
       
       if (responseText.includes('CORRECT') || responseText.includes('PRESENT') || responseText.includes('ABSENT')) {
         // Extract letter statuses from the response
@@ -467,7 +478,7 @@ export default function Home() {
         updateKeyboardStatus(guess, letterStatuses);
       }
     }
-  }, [messages, hasProcessedMessage, addProcessedMessage, addGuess, updateKeyboardStatus]);
+  }, [messages, hasProcessedMessage, addProcessedMessage, addGuess, updateKeyboardStatus, startNewGame]);
 
   const handleSendMessage = async (message: string) => {
     if (isThinking || message.trim() === '') return;
