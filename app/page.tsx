@@ -41,7 +41,7 @@ export default function Home() {
   } = useGame();
 
   // Use the agent hook for chat functionality
-  const { messages, sendMessage, isThinking, clearMessages, paymentRequired, clearPaymentRequired } = useAgent(currentNetwork);
+  const { messages, sendMessage, isThinking, clearMessages } = useAgent(currentNetwork);
   
   // Local state for UI
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -302,14 +302,8 @@ export default function Home() {
     }
   };
 
-  // Handle payment requirement from chat
-  useEffect(() => {
-    if (paymentRequired && paymentRequired.action === 'hint') {
-      // Automatically trigger the hint payment flow when user requests hint via chat
-      handleGetPaymentHint();
-      clearPaymentRequired();
-    }
-  }, [paymentRequired, clearPaymentRequired]);
+  // Handle payment requirement from chat - removed automatic trigger to prevent infinite loop
+  // Users must use the "Get Hint" button for payment, not automatic triggering from chat
 
   // Handle get funds button click
   const handleGetFunds = async () => {

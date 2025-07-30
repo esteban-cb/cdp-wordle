@@ -44,12 +44,14 @@ function evaluateGuess(
     }
   }
 
-  // Create evaluation string
+  // Create evaluation string in the format expected by the frontend
   for (let i = 0; i < WORD_LENGTH; i++) {
-    evaluation.push(`${guess[i].toUpperCase()}:${letterStatuses[i].toUpperCase()}`);
+    const letter = guess[i].toUpperCase();
+    const status = letterStatuses[i].toUpperCase();
+    evaluation.push(`Letter ${letter} at position ${i+1} is ${status}`);
   }
 
-  return { letterStatuses, evaluation: evaluation.join(",") };
+  return { letterStatuses, evaluation: evaluation.join("\n") };
 }
 
 // Wordle-specific tools for the AI agent

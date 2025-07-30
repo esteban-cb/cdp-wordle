@@ -62,10 +62,7 @@ export function useAgent(network?: NetworkConfig) {
     { text: string; sender: "user" | "agent" }[]
   >([]);
   const [isThinking, setIsThinking] = useState(false);
-  const [paymentRequired, setPaymentRequired] = useState<{
-    action: string;
-    cost: string;
-  } | null>(null);
+  // Removed paymentRequired state - payments now handled directly via UI buttons
 
   /**
    * Sends a user message, updates local state, and retrieves the agent's response.
@@ -88,13 +85,7 @@ export function useAgent(network?: NetworkConfig) {
         { text: responseText, sender: "agent" },
       ]);
 
-      // Handle payment requirements
-      if (agentResponse.requiresPayment && agentResponse.paymentAction && agentResponse.cost) {
-        setPaymentRequired({
-          action: agentResponse.paymentAction,
-          cost: agentResponse.cost,
-        });
-      }
+      // Payment requirements are now handled directly via UI buttons, not through chat flow
     }
 
     setIsThinking(false);
@@ -107,15 +98,10 @@ export function useAgent(network?: NetworkConfig) {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setIsThinking(false);
-    setPaymentRequired(null);
+    // Payment state removed
   }, []);
 
-  /**
-   * Clears the payment requirement state.
-   */
-  const clearPaymentRequired = useCallback(() => {
-    setPaymentRequired(null);
-  }, []);
+  // Payment requirement management removed - handled via UI buttons
 
-  return { messages, sendMessage, isThinking, clearMessages, paymentRequired, clearPaymentRequired };
+  return { messages, sendMessage, isThinking, clearMessages };
 }

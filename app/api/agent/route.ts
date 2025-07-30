@@ -48,21 +48,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } 
     else if (message.includes("hint") || message.includes("clue")) {
-      const result = await wordleTools.getHint.execute({ userId });
-      if (result.success && result.requiresPayment) {
-        response = "To get a hint, you need to pay 1 USDC. Please use the 'Get Hint' button to proceed with payment, or I can help you with other game actions for free.";
-        addToConversationHistory(userId, { text: response, sender: "agent" });
-        return NextResponse.json({ 
-          response,
-          requiresPayment: true,
-          paymentAction: "hint",
-          cost: "1.00 USDC"
-        } as AgentResponse);
-      } else if (result.success) {
-        response = result.message || "Here's a hint for you!";
-      } else {
-        response = result.message || "You need to start a game first to get hints.";
-      }
+      response = "To get a hint, you need to pay 1 USDC. Please use the 'Get Hint' button above the chat to proceed with payment. I can help you with other game actions like making guesses, checking status, or starting new games for free!";
     } 
     else if (message.includes("status") || message.includes("current")) {
       const result = await wordleTools.getGameStatus.execute({ userId });
