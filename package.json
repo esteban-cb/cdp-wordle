@@ -34,7 +34,8 @@
     "react-markdown": "^10.1.0",
     "viem": "^2.33.1",
     "wagmi": "^2.16.0",
-    "x402-axios": "^0.4.2"
+    "x402-axios": "^0.4.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/node": "^20.19.9",
