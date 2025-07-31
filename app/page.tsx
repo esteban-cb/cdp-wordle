@@ -64,15 +64,30 @@ export default function Home() {
       return;
     }
 
+    // Prevent multiple concurrent executions
+    if (isGettingHint) {
+      console.log('⚠️ Hint request already in progress, ignoring duplicate click');
+      return;
+    }
+
     setIsGettingHint(true);
+    
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Payment request timeout')), 60000); // 60 second timeout
+    });
+    
     try {
-      console.log('🚀 Using real X402 payments with embedded wallet');
-      
-      console.log('💳 Network:', currentNetwork?.name || 'Base Sepolia');
-      console.log('💰 Payment: $1.00 USDC per hint');
-      console.log('🔄 Generating X-PAYMENT header with embedded wallet...');
-      
-      // Use the working embedded wallet and X402 flow to generate header
+      // Race the payment logic against the timeout
+      await Promise.race([
+        (async () => {
+          console.log('🚀 Using real X402 payments with embedded wallet');
+          
+          console.log('💳 Network:', currentNetwork?.name || 'Base Sepolia');
+          console.log('💰 Payment: $1.00 USDC per hint');
+          console.log('🔄 Generating X-PAYMENT header with embedded wallet...');
+          
+          // Use the working embedded wallet and X402 flow to generate header
       const { getViemAccount } = await import('./services/embedded-viem-account');
       const { withPaymentInterceptor } = await import('x402-axios');
       const axios = (await import('axios')).default;
@@ -87,6 +102,7 @@ export default function Home() {
       console.log('✅ Embedded wallet account ready:', viemAccount.address);
       
       let capturedXPaymentHeader = '';
+      let headerCaptured = false;
       
       // Create interceptor to capture X-PAYMENT header
       const api = withPaymentInterceptor(
@@ -97,11 +113,12 @@ export default function Home() {
         viemAccount
       );
       
-      // Add request interceptor to capture X-PAYMENT header
+      // Add request interceptor to capture X-PAYMENT header (only once)
       api.interceptors.request.use((config) => {
-        if (config.headers['X-PAYMENT']) {
+        if (config.headers['X-PAYMENT'] && !headerCaptured) {
           console.log('✅ X-PAYMENT header found!');
           capturedXPaymentHeader = config.headers['X-PAYMENT'];
+          headerCaptured = true;
           console.log('📏 Header length:', capturedXPaymentHeader.length);
           console.log('🔍 Header preview:', capturedXPaymentHeader.substring(0, 50) + '...');
           
@@ -290,10 +307,13 @@ export default function Home() {
           }
         }
         
-        sendMessage(detailedMessage);
-      } else {
-        sendMessage('Failed to get payment hint from the server.');
-      }
+          sendMessage(detailedMessage);
+        } else {
+          sendMessage('Failed to get payment hint from the server.');
+        }
+        })(),
+        timeoutPromise
+      ]);
     } catch (error) {
       console.error('Error getting payment hint:', error);
       sendMessage('Error occurred while getting payment hint.');
@@ -391,9 +411,46 @@ export default function Home() {
         const displayName = user.userId.substring(0, 8);
         
         if (hasEnoughBalance) {
-          sendMessage(`Hello! I'm authenticated as ${displayName}. My embedded wallet (${walletInfo.address.substring(0, 6)}...${walletInfo.address.substring(walletInfo.address.length - 4)}) has ${walletInfo.usdcBalance} USDC. Ready for some word puzzles!`);
+          sendMessage(`🎮 **Welcome to CDP Wordle!**
+
+I'm your AI assistant ${displayName}. Here's how to play:
+
+**🎯 Game Rules:**
+• Say "start wordle" to begin a new game
+• Guess any 5-letter word to make a guess
+• You have 6 attempts to find the secret word
+• Letters turn green (correct), yellow (right letter, wrong position), or gray (not in word)
+
+**💰 Premium Features:**
+• Use the "Get Hint" button to buy a clue for 1 USDC
+• Your wallet has ${walletInfo.usdcBalance} USDC ready to use
+
+**🔍 Other Commands:**
+• Ask for "status" to see your current game progress
+• Type "help" for more detailed instructions
+
+Ready to start your first game? Just say "start wordle"!`);
         } else {
-          sendMessage(`I'm authenticated as ${displayName}, but my embedded wallet only has ${walletInfo.usdcBalance} USDC. How do I get more USDC tokens?`);
+          sendMessage(`🎮 **Welcome to CDP Wordle!**
+
+I'm your AI assistant ${displayName}. Here's how to play:
+
+**🎯 Game Rules:**
+• Say "start wordle" to begin a new game  
+• Guess any 5-letter word to make a guess
+• You have 6 attempts to find the secret word
+• Letters turn green (correct), yellow (right letter, wrong position), or gray (not in word)
+
+**💰 Get Started:**
+Your wallet currently has ${walletInfo.usdcBalance} USDC. To buy hints (1 USDC each), you'll need more funds.
+• Use the "Get Funds" button above to get testnet USDC
+• Or ask me "how do I get funds?"
+
+**🔍 Other Commands:**
+• Ask for "status" to see your current game progress  
+• Type "help" for more detailed instructions
+
+Ready to start your first game? Just say "start wordle"!`);
         }
       }
     };

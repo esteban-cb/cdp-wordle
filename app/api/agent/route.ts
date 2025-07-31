@@ -48,7 +48,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } 
     else if (message.includes("hint") || message.includes("clue")) {
-      response = "To get a hint, you need to pay 1 USDC. Please use the 'Get Hint' button above the chat to proceed with payment. I can help you with other game actions like making guesses, checking status, or starting new games for free!";
+      response = "To get a clue, you need to pay 1 USDC. Please use the 'Get Hint' button above the chat to proceed with payment. I can help you with other game actions like making guesses, checking status, or starting new games for free!";
     } 
     else if (message.includes("status") || message.includes("current")) {
       const result = await wordleTools.getGameStatus.execute({ userId });
@@ -96,10 +96,10 @@ Your embedded wallet is automatically connected and ready to use. For blockchain
       }
     }
     else if (message.includes("help")) {
-      response = "Welcome to CDP Wordle! Here's how to play:\n- Say 'start wordle' to begin a new game\n- Guess any 5-letter word\n- Get hints with 'give me a hint' (costs 1 USDC)\n- Ask for 'status' to see your current game\n- Ask about your 'balance' or 'wallet' for account info\n\nYou have 6 guesses to find the word!";
+      response = "Welcome to CDP Wordle! Here's how to play:\n- Say 'start wordle' to begin a new game\n- Guess any 5-letter word\n- Get clues with 'give me a clue' (costs 1 USDC)\n- Ask for 'status' to see your current game\n- Ask about your 'balance' or 'wallet' for account info\n\nYou have 6 guesses to find the word!";
     } 
     else {
-      response = "I can help you with:\n• Wordle game: 'start wordle', make 5-letter guesses, 'status'\n• Wallet info: 'balance', 'wallet address', 'network'\n• Payments: 'get hint' (1 USDC), 'get funds' (testnet)\n• General: 'help' for game instructions\n\nWhat would you like to do?";
+      response = "I can help you with:\n• Wordle game: 'start wordle', make 5-letter guesses, 'status'\n• Wallet info: 'balance', 'wallet address', 'network'\n• Payments: 'get clue' (1 USDC), 'get funds' (testnet)\n• General: 'help' for game instructions\n\nWhat would you like to do?";
     }
     
     // Add agent response to history
